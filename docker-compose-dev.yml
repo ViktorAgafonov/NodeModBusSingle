@@ -1,0 +1,34 @@
+#version: '3.8'
+
+services:
+  # Основной сервис (может быть запущен как в режиме тестирования, так и в обычном режиме)
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PUID: ${PUID:-1001}
+        PGID: ${PGID:-1001}
+    image: vvagafonov/nodemodbus:latest
+    container_name: nodemodbus
+    #command: ["npm", "${NODE_CMD:-start}"]  # По умолчанию NODE_CMD=start
+    command: ["npm", "${NODE_CMD:-test}"]
+    environment:
+      - TZ=Europe/Moscow
+    ports:
+      - "3000:3000"
+      - "502:502"
+    volumes:
+      - archive-data:/app/archive
+    stop_signal: SIGTERM
+    stop_grace_period: 30s
+    networks: 
+      - modbus_network # Используем сеть modbus_network для тестового режима
+
+volumes:
+  archive-data:
+    name: nodemodbus_archive
+
+networks:
+  modbus_network:
+    driver: bridge

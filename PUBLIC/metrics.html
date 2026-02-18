@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Метрики системы</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <div class="metric-group">
+            <h2>Ошибки</h2>
+            <p>Подключения: <span id="connection-errors" class="error-count">0</span></p>
+            <p>Датчики: <span id="sensor-errors" class="error-count">0</span></p>
+            <p>Таймауты: <span id="timeout-errors" class="error-count">0</span></p>
+            <p>Декодирование: <span id="decode-errors" class="error-count">0</span></p>
+            <p>Последняя ошибка: <span id="last-error-time">нет</span></p>
+        </div>
+        
+        <div class="metric-group">
+            <h2>Производительность (за последний час)</h2>
+            <p>Длительность последнего опроса: <span id="last-poll-duration">0</span> мс</p>
+            <p>Средняя длительность опроса: <span id="avg-poll-duration">0</span> мс</p>
+            <p>Всего опросов: <span id="total-polls">0</span></p>
+            <p>Неудачных опросов: <span id="failed-polls" class="warning-count">0</span></p>
+        </div>
+
+        <div class="metric-group">
+            <h2>Качество данных</h2>
+            <p>Повторы данных: <span id="repeated-count" class="warning-count">0</span></p>
+            <p>Последний повтор: <span id="last-repeated-time">нет</span></p>
+            <div id="affected-sensors-list" class="affected-sensors">
+                <h3>Затронутые датчики:</h3>
+                <ul id="affected-sensors">
+                    <li>Нет затронутых датчиков</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="metric-group">
+            <h2>Системные метрики</h2>
+            <p>Использование памяти: <span id="memory-usage">0</span> МБ</p>
+            <p>Нагрузка CPU: <span id="cpu-load">0</span>%</p>
+            <p>Время работы: <span id="uptime">0д 0ч 0м 0с</span></p>
+            <p>Использование диска:</p>
+            <ul class="disk-usage">
+                <li>Всего данных: <span id="total-disk-usage">0</span> МБ</li>
+                <li>Архивировано: <span id="archived-disk-usage">0</span> МБ (<span id="archived-percentage">0</span>%)</li>
+                <li>Активные данные: <span id="active-disk-usage">0</span> МБ (<span id="active-percentage">0</span>%)</li>
+            </ul>
+        </div>
+
+        <div class="metric-group">
+            <h2>Активные клиенты (<span id="active-clients-count">0</span>)</h2>
+            <div id="active-clients-list" class="clients-list">
+                <table id="clients-table">
+                    <thead>
+                        <tr>
+                            <th>IP адрес</th>
+                            <th>Последний запрос</th>
+                            <th>Путь</th>
+                            <th>Количество запросов</th>
+                        </tr>
+                    </thead>
+                    <tbody id="clients-tbody">
+                        <tr>
+                            <td colspan="4">Нет активных клиентов</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="metric-group">
+            <h2>Управление</h2>
+            <button id="reset-metrics" class="reset-button">Сбросить метрики</button>
+            <button id="refresh-metrics" class="refresh-button">Обновить данные</button>
+        </div>
+    </div>
+    <script src="JS/metrics.js"></script>
+</body>
+</html>

@@ -1,0 +1,39 @@
+---
+services:
+  # Основной сервис (может быть запущен как в режиме тестирования, так и в обычном режиме)
+  climatenode:
+    image: registry.ermolinskie.com:443/kipia/climate-monitor:latest
+    container_name: climatenode
+    restart: unless-stopped
+    stop_signal: SIGTERM
+    stop_grace_period: 30s    
+    #command: ["npm", "${NODE_CMD:-start}"]  # По умолчанию NODE_CMD=start
+    command: ["npm", "${NODE_CMD:-test}"]
+    environment:
+      - TZ=Europe/Moscow
+      - LOG_LEVEL=DEBUG
+      - PORT=3000
+    networks: 
+      - br_modbus # Используем сеть modbus_network для тестового режима
+      - br_traefik
+    ports:
+      #- 3000:3000
+      - 502:502
+      
+    volumes:
+      - /storage/services/climatenode/app/archive:/app/archive
+      - /storage/services/climatenode/app/config/test.json:/app/config/test.json
+      - /storage/services/climatenode/app/config/default.json:/app/config/default.json
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.climatenode-rtr.entrypoints=websecure"
+      - "traefik.http.routers.climatenode-rtr.rule=Host(`climatenode.${DOMAIN_NAME}`)"
+      #- "traefik.http.routers.climatenode-rtr.middlewares=ipwhitelist-mw,authelia-mw"
+      - "traefik.http.routers.climatenode-rtr.service=climatenode-svc"
+      - "traefik.http.services.climatenode-svc.loadbalancer.server.port=3000"  
+
+networks:
+  br_modbus:
+    external: true
+  br_traefik:
+    external: true 

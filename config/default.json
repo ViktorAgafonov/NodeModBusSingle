@@ -1,0 +1,55 @@
+﻿{
+    "settings": {
+        "polling": {
+            "modbus": 15000,
+            "archive": 120000
+        },
+        "api": {
+            "requestLimit": "5mb"
+        }
+    },
+    "storages": [
+        {
+            "name": "Склад 1",
+            "device": {
+                "ip": "127.0.0.1",
+                "port": 502,
+                "sensors": [
+                    {
+                        "type": "temperature",
+                        "address": 2,
+                        "register": 2250,
+                        "registerCount": 2
+                    },
+                    {
+                        "type": "humidity",
+                        "address": 2,
+                        "register": 2200,
+                        "registerCount": 2
+                    }
+                ]
+            }
+        },
+        {
+            "name": "Склад 2",
+            "device": {
+                "ip": "127.0.0.1",
+                "port": 503,
+                "sensors": [
+                    {
+                        "type": "temperature",
+                        "address": 2,
+                        "register": 2250,
+                        "registerCount": 2
+                    },
+                    {
+                        "type": "humidity",
+                        "address": 2,
+                        "register": 2200,
+                        "registerCount": 2
+                    }
+                ]
+            }
+        }
+    ]
+}

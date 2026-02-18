@@ -1,0 +1,28 @@
+{
+    "settings": {
+        "polling": {
+            "modbus": 15000,
+            "archive": 120000
+        }
+    },
+    "emulator": {
+        "port": 502,
+        "host": "127.0.0.1",
+        "unitId": 2,
+        "updateInterval": 1000,
+        "valueChanges": {
+            "temperature": {
+                "register": 2250,
+                "min_value": -20,
+                "max_value": 40,
+                "change": 5.3
+            },
+            "humidity": {
+                "register": 2200,
+                "min_value": 0,
+                "max_value": 100,
+                "change": 2.2
+            }
+        }
+    }
+}

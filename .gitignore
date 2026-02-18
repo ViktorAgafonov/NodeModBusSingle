@@ -1,0 +1,29 @@
+node_modules/
+archive/
+*.log
+
+# Docker
+*.tar
+.docker/
+docker-compose.dev.sh
+.dockerignore
+
+#Ci
+.gitlab-ci.yml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Временные файлы
+*.tmp
+*.temp
+*~
+.log/
+log/

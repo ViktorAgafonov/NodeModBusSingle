@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Мониторинг складов (v0.4)</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="JS/LIB/chart.umd.min.js"></script>
+    <script src="JS/LIB/dayjs.min.js"></script>
+    <script src="JS/LIB/customParseFormat.js"></script>
+    <script>
+      if (window.dayjs && window.dayjs_plugin_customParseFormat) {
+        window.dayjs.extend(window.dayjs_plugin_customParseFormat);
+      }
+    </script>
+    <script src="JS/LIB/chartjs-adapter-dayjs-4.min.js"></script>
+    <script type="module" src="JS/app.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Мониторинг температуры и влажности</h1>
+            <div class="time-range">
+                <button data-range="1h" data-step="5m" class="active">1 час</button>
+                <button data-range="24h" data-step="1h">24 часа</button>
+                <button data-range="14d" data-step="12h">2 недели</button>
+                <button data-range="60d" data-step="1d">2 месяца</button>
+            </div>
+        </header>
+
+        <div class="storages-grid" id="storagesContainer">
+            <!-- Карточки складов будут добавлены динамически -->
+        </div>
+    </div>
+    
+    <footer>
+        <button id="about">Система мониторинга климата холодных складов. 2025 г.</button>
+    </footer>
+</body>
+</html> 
