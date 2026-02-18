@@ -1,8 +1,8 @@
-// Константы для настройки опроса датчиков
+﻿// Константы для настройки опроса датчиков
 const MODBUS_SETTINGS = {
     // Таймауты
     CONNECT_TIMEOUT: 1000,      // Таймаут на подключение (мс)
-    MIN_POLL_DELAY: 500,      // Минимальная задержка между опросами складов (мс)
+    MIN_POLL_DELAY: 500,      // Минимальная задержка между опросами участков (мс)
     READ_TIMEOUT: 250,          // Таймаут на чтение (мс)
     READ_RETRIES: 2,           // Количество повторных попыток чтения
     RETRY_DELAY: 100,          // Задержка между повторными попытками (мс)
@@ -61,10 +61,24 @@ app.use(express.urlencoded({ extended: true, limit: requestLimit }));
 // Делаем currentSensorData глобальным
 global.currentSensorData = {};
 
-// Генерируем ID для складов и датчиков
-config.storages.forEach((storage, index) => {
-    // Генерируем ID склада
-    storage.id = `storage_${index + 1}`;
+// Лимиты корректности датчиков (общие для всех)
+const sensorLimits = config.sensorLimits || {};
+
+// Дефолтные лимиты участков
+const defaultLimits = config.defaultLimits || {};
+
+// Генерируем ID для участков и датчиков, мержим лимиты
+config.sections.forEach((section, index) => {
+    // Генерируем ID участка
+    section.id = `section_${index + 1}`;
+
+    // Мержим лимиты участка: секционные перезаписывают дефолтные
+    const overrides = section.limits || {};
+    section.limits = {};
+    const allTypes = new Set([...Object.keys(defaultLimits), ...Object.keys(overrides)]);
+    for (const type of allTypes) {
+        section.limits[type] = { ...(defaultLimits[type] || {}), ...(overrides[type] || {}) };
+    }
 
     // Счетчики для каждого типа датчиков
     const sensorCounters = {
@@ -73,20 +87,20 @@ config.storages.forEach((storage, index) => {
     };
 
     // Генерируем ID для каждого датчика
-    storage.device.sensors.forEach(sensor => {
+    section.device.sensors.forEach(sensor => {
         sensorCounters[sensor.type]++;
-        sensor.id = `${storage.id}.${sensor.type}_${sensorCounters[sensor.type]}`;
+        sensor.id = `${section.id}.${sensor.type}_${sensorCounters[sensor.type]}`;
     });
 });
 
 // Сохраняем конфигурацию в глобальную переменную
 global.config = config;
 
-// Инициализация Modbus клиентов для каждого склада
-const modbusClients = config.storages.map(storage => {
+// Инициализация Modbus клиентов для каждого участка
+const modbusClients = config.sections.map(section => {
     const client = new ModbusRTU();
     return {
-        storage: storage.name,
+        section: section.name,
         client,
         connected: false
     };
@@ -290,30 +304,30 @@ async function updateSystemMetrics() {
 const METRICS_UPDATE_INTERVAL = config.settings?.cache?.diskUsageTimeout || 300000;
 setInterval(updateSystemMetrics, METRICS_UPDATE_INTERVAL);
 
-// Функция запуска опроса всех складов
-async function pollStorages() {
+// Функция запуска опроса всех участков
+async function pollSections() {
     if (!isPolling) return;
 
-    logger.debug('Начало цикла опроса складов');
+    logger.debug('Начало цикла опроса участков');
     let hasErrors = false;
 
     try {
-        // Опрашиваем каждый склад последовательно, чтобы избежать проблем с параллельным опросом
+        // Опрашиваем каждый участок последовательно, чтобы избежать проблем с параллельным опросом
         for (const client of modbusClients) {
             if (!isPolling) break;
             
-            const storage = config.storages.find(s => s.name === client.storage);
-            if (!storage) continue;
+            const section = config.sections.find(s => s.name === client.section);
+            if (!section) continue;
 
             try {
-                await pollStorageSensors(storage, client);
+                await pollSectionSensors(section, client);
             } catch (error) {
                 hasErrors = true;
-                logger.error(`Ошибка при опросе склада ${storage.name}: ${error.message}`);
-                // Продолжаем опрос других складов
+                logger.error(`Ошибка при опросе участка ${section.name}: ${error.message}`);
+                // Продолжаем опрос других участков
             }
             
-            // Добавляем небольшую задержку между опросами складов для стабильности Modbus (кроме последнего)
+            // Добавляем небольшую задержку между опросами участков для стабильности Modbus (кроме последнего)
             if (isPolling && modbusClients.indexOf(client) < modbusClients.length - 1) {
                 await new Promise(resolve => setTimeout(resolve, MODBUS_SETTINGS.MIN_POLL_DELAY));
             }
@@ -344,7 +358,7 @@ function startPolling() {
     if (isPolling) return;
 
     isPolling = true;
-    logger.info('Запуск системы опроса складов');
+    logger.info('Запуск системы опроса участков');
     pollManager.emit('poll');
 }
 
@@ -352,7 +366,7 @@ function startPolling() {
 async function stopPolling() {
     if (!isPolling) return;
 
-    logger.info('Остановка системы опроса складов');
+    logger.info('Остановка системы опроса участков');
     isPolling = false;
 
     // Отменяем запланированный опрос
@@ -361,18 +375,18 @@ async function stopPolling() {
         pollTimeout = null;
     }
 
-    // Запускаем опрос складов параллельно
+    // Запускаем опрос участков параллельно
     await Promise.all(modbusClients.map(async (client) => {
-        const storage = config.storages.find(s => s.name === client.storage);
-        if (!storage) return;
+        const section = config.sections.find(s => s.name === client.section);
+        if (!section) return;
 
-        const storageStartTime = process.hrtime();
+        const sectionStartTime = process.hrtime();
         try {
-            await pollStorageSensors(storage, client);
-            const storageTime = process.hrtime(storageStartTime);
-            logger.debug(`Завершен опрос склада ${storage.name} за ${storageTime[0]}s ${storageTime[1] / 1000000}ms`);
+            await pollSectionSensors(section, client);
+            const sectionTime = process.hrtime(sectionStartTime);
+            logger.debug(`Завершен опрос участка ${section.name} за ${sectionTime[0]}s ${sectionTime[1] / 1000000}ms`);
         } catch (error) {
-            logger.error(`Ошибка при опросе склада ${storage.name}: ${error.message}`);
+            logger.error(`Ошибка при опросе участка ${section.name}: ${error.message}`);
         }
     }));
 
@@ -380,7 +394,7 @@ async function stopPolling() {
 }
 
 // Обработчик опроса
-pollManager.on('poll', pollStorages);
+pollManager.on('poll', pollSections);
 
 // Graceful shutdown
 process.on('SIGTERM', async () => {
@@ -431,10 +445,10 @@ function updatePerformanceMetrics(duration, isSuccess) {
     metrics.performance.avgPollDuration = totalDuration / metrics.performance.pollHistory.length;
 }
 
-// Оптимизированная функция опроса датчиков одного склада
-async function pollStorageSensors(storage, client) {
-    const deviceInfo = `${storage.name} (${storage.device.ip}:${storage.device.port})`;
-    let isStorageOnline = false;
+// Оптимизированная функция опроса датчиков одного участка
+async function pollSectionSensors(section, client) {
+    const deviceInfo = `${section.name} (${section.device.ip}:${section.device.port})`;
+    let isSectionOnline = false;
     const pollStartTime = process.hrtime();
 
     if (!isPolling) return;
@@ -442,8 +456,8 @@ async function pollStorageSensors(storage, client) {
     try {
         // Пытаемся подключиться к устройству
         try {
-            await connectWithRetry(client, storage, deviceInfo);
-            isStorageOnline = true;
+            await connectWithRetry(client, section, deviceInfo);
+            isSectionOnline = true;
         } catch (error) {
             // Если не удалось подключиться, обрабатываем ошибку и выходим
             handleConnectionError(deviceInfo, client, 'Connection');
@@ -451,7 +465,7 @@ async function pollStorageSensors(storage, client) {
         }
 
         // Если подключение успешно, опрашиваем группы датчиков
-        const optimizedSensorGroups = optimizeSensorGroups(storage.device.sensors);
+        const optimizedSensorGroups = optimizeSensorGroups(section.device.sensors);
         let hasErrors = false;
 
         for (const group of optimizedSensorGroups) {
@@ -474,9 +488,9 @@ async function pollStorageSensors(storage, client) {
         }
 
         // Если были ошибки при опросе групп, но подключение было успешным,
-        // устанавливаем isStorageOnline в false, чтобы обновить статус датчиков
+        // устанавливаем isSectionOnline в false, чтобы обновить статус датчиков
         if (hasErrors) {
-            isStorageOnline = false;
+            isSectionOnline = false;
         }
 
         const pollDuration = process.hrtime(pollStartTime);
@@ -489,19 +503,19 @@ async function pollStorageSensors(storage, client) {
         updatePerformanceMetrics(durationMs, false);
         // Не пробрасываем ошибку дальше, чтобы не прерывать цикл опроса
     } finally {
-        await cleanupConnection(client, deviceInfo, isStorageOnline, storage);
+        await cleanupConnection(client, deviceInfo, isSectionOnline, section);
     }
 }
 
 // Вспомогательные функции для оптимизации опроса
-async function connectWithRetry(client, storage, deviceInfo) {
+async function connectWithRetry(client, section, deviceInfo) {
     const maxRetries = 2;
     let retries = 0;
 
     while (retries < maxRetries) {
         try {
-            await client.client.connectTCP(storage.device.ip, {
-                port: storage.device.port,
+            await client.client.connectTCP(section.device.ip, {
+                port: section.device.port,
                 timeout: MODBUS_SETTINGS.CONNECT_TIMEOUT
             });
             client.client.setTimeout(MODBUS_SETTINGS.READ_TIMEOUT);
@@ -673,7 +687,7 @@ function processSensorGroupData(group, data, deviceInfo) {
     });
 }
 
-async function cleanupConnection(client, deviceInfo, isStorageOnline, storage) {
+async function cleanupConnection(client, deviceInfo, isSectionOnline, section) {
     // Закрываем соединение, если оно было открыто
     if (client.connected) {
         try {
@@ -684,13 +698,13 @@ async function cleanupConnection(client, deviceInfo, isStorageOnline, storage) {
         }
     }
 
-    // Если склад не в сети, обновляем статусы всех его датчиков
-    if (!isStorageOnline) {
-        // Получаем ID склада из имени датчика (первая часть до точки)
-        const storageId = storage.id;
+    // Если Участок не в сети, обновляем статусы всех его датчиков
+    if (!isSectionOnline) {
+        // Получаем ID участка из имени датчика (первая часть до точки)
+        const sectionId = section.id;
         
-        // Обновляем статусы всех датчиков этого склада
-        storage.device.sensors.forEach(sensor => {
+        // Обновляем статусы всех датчиков этого участка
+        section.device.sensors.forEach(sensor => {
             const sensorId = sensor.id;
             
             // Если датчик существует в текущих данных, обновляем его статус
@@ -815,23 +829,23 @@ function handleConnectionError(deviceInfo, errorSource, errorType) {
             break;
     }
     
-// Определяем префикс склада (storage.id), чтобы корректно помечать датчики
-let storageIdPrefix = null;
+// Определяем префикс участка (section.id), чтобы корректно помечать датчики
+let sectionIdPrefix = null;
 if (typeof errorSource === 'string') {
-    storageIdPrefix = errorSource; // уже передан id
-} else if (errorSource && typeof errorSource === 'object' && errorSource.storage) {
-    // errorSource.storage — это имя склада; находим его id в конфиге
+    sectionIdPrefix = errorSource; // уже передан id
+} else if (errorSource && typeof errorSource === 'object' && errorSource.section) {
+    // errorSource.section — это имя участка; находим его id в конфиге
     try {
-        const matched = (global.config?.storages || []).find(s => s.name === errorSource.storage);
-        const storageIdCandidate = matched?.id;
-        storageIdPrefix = storageIdCandidate || errorSource.storage; // fallback на имя, если id не найден
+        const matched = (global.config?.sections || []).find(s => s.name === errorSource.section);
+        const sectionIdCandidate = matched?.id;
+        sectionIdPrefix = sectionIdCandidate || errorSource.section; // fallback на имя, если id не найден
     } catch (_) {}
 }
 
-// Помечаем датчики, относящиеся к складу, как offline
-if (global.currentSensorData && storageIdPrefix) {
+// Помечаем датчики, относящиеся к участку, как offline
+if (global.currentSensorData && sectionIdPrefix) {
     Object.keys(global.currentSensorData).forEach(sensorId => {
-        if (sensorId.startsWith(storageIdPrefix)) {
+        if (sensorId.startsWith(sectionIdPrefix)) {
                 global.currentSensorData[sensorId] = {
                     ...global.currentSensorData[sensorId],
                     value: null,

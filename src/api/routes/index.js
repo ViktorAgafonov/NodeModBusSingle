@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 const router = express.Router();
 const { apiLimiter, historyLimiter } = require('../middleware/rateLimiter');
 const fs = require('fs').promises;
@@ -35,8 +35,8 @@ router.get('/current', (req, res) => {
 		};
 
         // Получаем конфигурацию для определения типа датчика
-        const sensors = global.config.storages.reduce((acc, storage) => {
-            storage.device.sensors.forEach(sensor => {
+        const sensors = global.config.sections.reduce((acc, section) => {
+            section.device.sensors.forEach(sensor => {
                 acc[sensor.id] = sensor;
             });
             return acc;
@@ -88,49 +88,18 @@ router.get('/current', (req, res) => {
     }
 });
 
-// Валидация запроса на получение исторических данных
-function validateHistoryRequest(req, res, storageId = null) {
-    const range = req.query.range;
-    const validRanges = ['1h', '24h', '14d', '60d'];
-    
-    if (!range || !validRanges.includes(range)) {
-        return { 
-            isValid: false, 
-            response: res.status(400).json({ 
-                error: 'Некорректный параметр range',
-                validRanges: validRanges
-            })
-        };
-    }
+// Фиксированный диапазон — всегда 1 час, агрегация 5 минут
+const HISTORY_RANGE = '1h';
+const AGGREGATION_INTERVAL = 5 * 60 * 1000;
 
-    // Если указан storageId, проверяем существование склада
-    if (storageId) {
-        const storage = global.config.storages.find(s => s.id === storageId);
-        if (!storage) {
-            return { 
-                isValid: false, 
-                response: res.status(404).json({ error: 'Склад не найден' })
-            };
-        }
+// Валидация sectionId
+function validateSectionId(res, sectionId) {
+    const section = global.config.sections.find(s => s.id === sectionId);
+    if (!section) {
+        res.status(404).json({ error: 'Участок не найден' });
+        return false;
     }
-
-    return { isValid: true, range };
-}
-
-// Определение интервала агрегации на основе временного диапазона
-function getAggregationInterval(range) {
-    switch(range) {
-        case '1h':
-            return 5 * 60 * 1000; // 5 минут
-        case '24h':
-            return 60 * 60 * 1000; // 1 час
-        case '14d':
-            return 12 * 60 * 60 * 1000; // 12 часов
-        case '60d':
-            return 24 * 60 * 60 * 1000; // 24 часа
-        default:
-            return 5 * 60 * 1000;
-    }
+    return true;
 }
 
 // Кэш для хранения результатов агрегации с использованием LRU
@@ -239,7 +208,7 @@ function processFileData(data, fileName, startTime, endTime, rawData) {
 }
 
 // Обработка данных датчиков
-function processSensorsData(sensors, timestamp, rawData, storageFilter = null) {
+function processSensorsData(sensors, timestamp, rawData, sectionFilter = null) {
     sensors.forEach(sensor => {
         // Проверка валидности данных датчика
         if (!sensor || !sensor.sensor_id || !sensor.type) {
@@ -267,8 +236,8 @@ function processSensorsData(sensors, timestamp, rawData, storageFilter = null) {
             return;
         }
         
-        // Если указан storageFilter, фильтруем только датчики этого склада
-        if (storageFilter && !sensor.sensor_id.startsWith(storageFilter)) {
+        // Если указан sectionFilter, фильтруем только датчики этого участка
+        if (sectionFilter && !sensor.sensor_id.startsWith(sectionFilter)) {
             return;
         }
         
@@ -320,11 +289,12 @@ function aggregateSensorData(sensorId, data, aggregationInterval, sensorConfig) 
     };
 
     // Формируем временной ряд для датчика
+    const typeName = sensorConfig.type === 'temperature' ? 'Температура' : 'Влажность';
     return {
         id: sensorId,
-        name: sensorConfig.name,
-        storageId: sensorConfig.storageId,
-        storageName: sensorConfig.storageName,
+        name: sensorConfig.name || `${typeName} (${sensorConfig.sectionName || sensorId})`,
+        sectionId: sensorConfig.sectionId,
+        sectionName: sensorConfig.sectionName,
         data: Array.from(groupedData).map(([timestamp, values]) => {
             // Проверка наличия значений
             if (!values || values.length === 0) {
@@ -359,41 +329,41 @@ function aggregateDataByType(rawData, aggregationInterval) {
     };
     
     // Создаем индекс датчиков один раз для оптимизации
-    const sensorToStorageMap = new Map();
-    const storageNames = new Map();
+    const sensorToSectionMap = new Map();
+    const sectionNames = new Map();
 
-    global.config.storages.forEach(storage => {
-        storageNames.set(storage.id, storage.name);
-        storage.device.sensors.forEach(sensor => {
-            sensorToStorageMap.set(sensor.id, storage.id);
+    global.config.sections.forEach(section => {
+        sectionNames.set(section.id, section.name);
+        section.device.sensors.forEach(sensor => {
+            sensorToSectionMap.set(sensor.id, section.id);
         });
     });
     
-    // Создаем временные ряды для каждого типа датчика, сгруппированные по складам
+    // Создаем временные ряды для каждого типа датчика, сгруппированные по участкам
     for (const type of ['temperature', 'humidity']) {
-        // Группируем точки данных по складам
-        const storageData = new Map(); // Map: storageId -> allPoints[]
+        // Группируем точки данных по участкам
+        const sectionData = new Map(); // Map: sectionId -> allPoints[]
         
         for (const [sensorId, data] of rawData[type]) {
-            // Получаем информацию о складе для этого датчика
-            const storageId = sensorToStorageMap.get(sensorId);
-            if (!storageId) continue;
+            // Получаем информацию об участке для этого датчика
+            const sectionId = sensorToSectionMap.get(sensorId);
+            if (!sectionId) continue;
             
-            // Инициализируем массив точек для склада, если его еще нет
-            if (!storageData.has(storageId)) {
-                storageData.set(storageId, []);
+            // Инициализируем массив точек для участка, если его еще нет
+            if (!sectionData.has(sectionId)) {
+                sectionData.set(sectionId, []);
             }
             
-            // Добавляем точки данных в соответствующий склад
-            storageData.get(storageId).push(...data);
+            // Добавляем точки данных в соответствующий участок
+            sectionData.get(sectionId).push(...data);
         }
         
-        // Для каждого склада создаем серию с максимальными значениями
-        for (const [storageId, allPoints] of storageData.entries()) {
-            // Находим информацию о складе
-            const storageName = storageNames.get(storageId) || 'Неизвестный склад';
+        // Для каждого участка создаем серию с максимальными значениями
+        for (const [sectionId, allPoints] of sectionData.entries()) {
+            // Находим информацию об участке
+            const sectionName = sectionNames.get(sectionId) || 'Неизвестный участок';
             
-            // Группируем точки по интервалам для текущего склада
+            // Группируем точки по интервалам для текущего участка
             const groupedPoints = new Map();
             allPoints.forEach(point => {
                 const interval = Math.floor(point.timestamp / aggregationInterval) * aggregationInterval;
@@ -405,9 +375,9 @@ function aggregateDataByType(rawData, aggregationInterval) {
             
             // Создаем серию с максимальными значениями для каждого интервала
             const maxSeries = {
-                id: `${type}_${storageId}_max`,
-                name: `${storageName}: ${type === 'temperature' ? 'Макс.темпер.' : 'Макс.влаж.'}`,
-                storageId: storageId,
+                id: `${type}_${sectionId}_max`,
+                name: `${sectionName}: ${type === 'temperature' ? 'Макс.темпер.' : 'Макс.влаж.'}`,
+                sectionId: sectionId,
                 data: Array.from(groupedPoints).map(([timestamp, values]) => {
                     if (!values || values.length === 0) return null;
                     
@@ -467,19 +437,13 @@ function validateResult(result) {
     return result;
 }
 
-// Универсальная функция для получения исторических данных
-async function getHistoricalData(req, res, storageId = null) {
+// Универсальная функция для получения исторических данных (всегда за 1 час)
+async function getHistoricalData(req, res, sectionId = null) {
     try {
-        // Валидация запроса
-        const validation = validateHistoryRequest(req, res, storageId);
-        if (!validation.isValid) {
-            return validation.response;
-        }
-        
-        const range = validation.range;
-        
+        if (sectionId && !validateSectionId(res, sectionId)) return;
+
         // Проверяем кэш
-        const cacheKey = `${storageId || 'all'}_${range}`;
+        const cacheKey = sectionId || 'all';
         const cachedResult = getFromCache(cacheKey);
         
         if (cachedResult) {
@@ -487,75 +451,43 @@ async function getHistoricalData(req, res, storageId = null) {
             return res.json(cachedResult);
         }
         
-        const { startTime, endTime } = parseTimeRange(range);
+        const { startTime, endTime } = parseTimeRange(HISTORY_RANGE);
         
-        logger.debug(`Запрошен диапазон: ${range}, начальное время: ${startTime.toISOString()}, склад: ${storageId || 'все'}`);
-        
-        // Определение интервала агрегации
-        const aggregationInterval = getAggregationInterval(range);
+        logger.debug(`Запрос истории за 1 час, участок: ${sectionId || 'все'}`);
         
         // Загрузка исторических данных
-        const rawData = await loadHistoricalData(range, startTime, endTime);
+        const rawData = await loadHistoricalData(HISTORY_RANGE, startTime, endTime);
         
         // Формируем результат
         let result;
         
-        if (storageId) {
-            // Для запроса конкретного склада
-            result = {
-                temperature: [],
-                humidity: []
-            };
+        if (sectionId) {
+            result = { temperature: [], humidity: [] };
             
-            // Получаем конфигурацию датчиков
-            const allSensors = global.config.storages.reduce((acc, storage) => {
-                // Если указан storageId, фильтруем только датчики этого склада
-                if (storageId && storage.id !== storageId) return acc;
-                
-                storage.device.sensors.forEach(sensor => {
-                    acc[sensor.id] = {
-                        ...sensor,
-                        storageId: storage.id,
-                        storageName: storage.name
-                    };
+            const allSensors = global.config.sections.reduce((acc, section) => {
+                if (section.id !== sectionId) return acc;
+                section.device.sensors.forEach(sensor => {
+                    acc[sensor.id] = { ...sensor, sectionId: section.id, sectionName: section.name };
                 });
                 return acc;
             }, {});
             
-            // Обрабатываем данные для каждого типа датчиков
             for (const type of ['temperature', 'humidity']) {
                 for (const [sensorId, data] of rawData[type]) {
-                    // Находим конфигурацию датчика
                     const sensorConfig = allSensors[sensorId];
                     if (!sensorConfig) continue;
-                    
-                    // Агрегируем данные для датчика
-                    const series = aggregateSensorData(sensorId, data, aggregationInterval, sensorConfig);
-                    
-                    if (series.data.length > 0) {
-                        result[type].push(series);
-                    }
+                    const series = aggregateSensorData(sensorId, data, AGGREGATION_INTERVAL, sensorConfig);
+                    if (series.data.length > 0) result[type].push(series);
                 }
             }
             
-            // Проверка результата перед отправкой
             result = validateResult(result);
-            
-            // Сохраняем результат в кэш
-            saveToCache(cacheKey, result);
-            
-            // Формат для /storage/:storageId/history
-            return res.json(result);
         } else {
-            // Для общего запроса
-            result = aggregateDataByType(rawData, aggregationInterval);
-            
-            // Сохраняем результат в кэш
-            saveToCache(cacheKey, result);
-            
-            // Формат для /history
-            return res.json(result);
+            result = aggregateDataByType(rawData, AGGREGATION_INTERVAL);
         }
+        
+        saveToCache(cacheKey, result);
+        return res.json(result);
     } catch (error) {
         logger.error(`Ошибка при получении исторических данных: ${error.message}`);
         res.status(500).json({ error: 'Внутренняя ошибка сервера' });
@@ -567,10 +499,10 @@ router.get('/history', historyLimiter, (req, res) => {
     getHistoricalData(req, res);
 });
 
-// Получение исторических данных для конкретного склада
-router.get('/storage/:storageId/history', historyLimiter, (req, res) => {
-    const { storageId } = req.params;
-    getHistoricalData(req, res, storageId);
+// Получение исторических данных для конкретного участка
+router.get('/section/:sectionId/history', historyLimiter, (req, res) => {
+    const { sectionId } = req.params;
+    getHistoricalData(req, res, sectionId);
 });
 
 // Сброс метрик
@@ -646,7 +578,7 @@ router.get('/health', (req, res) => {
 
     // Проверяем доступность данных
     const hasSensorData = global.currentSensorData && Object.keys(global.currentSensorData).length > 0;
-    const hasConfig = global.config && global.config.storages;
+    const hasConfig = global.config && global.config.sections;
 
     if (!hasSensorData || !hasConfig) {
         health.status = 'degraded';

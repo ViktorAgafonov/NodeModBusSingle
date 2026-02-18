@@ -8,46 +8,106 @@
             "requestLimit": "5mb"
         }
     },
-    "storages": [
+    "sensorLimits": {
+        "temperature": {
+            "min": -40,
+            "max": 80,
+            "warningMessage": "Показания датчика температуры вне допустимого диапазона"
+        },
+        "humidity": {
+            "min": 0,
+            "max": 100,
+            "warningMessage": "Показания датчика влажности вне допустимого диапазона"
+        }
+    },
+    "sections": [
         {
-            "name": "Склад 1",
+            "name": "ШОР Линия №38",
+            "limits": {
+                "temperature": { "min": 12, "max": 60, "warning_min": 20, "warning_max": 55 },
+                "humidity": { "min": 30, "max": 50, "warning_min": 31, "warning_max": 49 }
+            },
             "device": {
                 "ip": "127.0.0.1",
                 "port": 502,
                 "sensors": [
-                    {
-                        "type": "temperature",
-                        "address": 2,
-                        "register": 2250,
-                        "registerCount": 2
-                    },
-                    {
-                        "type": "humidity",
-                        "address": 2,
-                        "register": 2200,
-                        "registerCount": 2
-                    }
+                    { "type": "temperature", "address": 2, "register": 2250, "registerCount": 2 },
+                    { "type": "humidity", "address": 2, "register": 2200, "registerCount": 2 }
                 ]
             }
         },
         {
-            "name": "Склад 2",
+            "name": "ШОР Линия №40",
+            "limits": {
+                "temperature": { "min": 20, "max": 40, "warning_min": 25, "warning_max": 45 },
+                "humidity": { "min": 30, "max": 50, "warning_min": 31, "warning_max": 49 }
+            },
             "device": {
                 "ip": "127.0.0.1",
                 "port": 503,
                 "sensors": [
-                    {
-                        "type": "temperature",
-                        "address": 2,
-                        "register": 2250,
-                        "registerCount": 2
-                    },
-                    {
-                        "type": "humidity",
-                        "address": 2,
-                        "register": 2200,
-                        "registerCount": 2
-                    }
+                    { "type": "temperature", "address": 2, "register": 2250, "registerCount": 2 },
+                    { "type": "humidity", "address": 2, "register": 2200, "registerCount": 2 }
+                ]
+            }
+        },
+        {
+            "name": "ШОР Линия №45",
+            "limits": {
+                "temperature": { "min": 25, "max": 65, "warning_min": 35, "warning_max": 55 },
+                "humidity": { "min": 30, "max": 50, "warning_min": 31, "warning_max": 49 }
+            },
+            "device": {
+                "ip": "127.0.0.1",
+                "port": 504,
+                "sensors": [
+                    { "type": "temperature", "address": 2, "register": 2250, "registerCount": 2 },
+                    { "type": "humidity", "address": 2, "register": 2200, "registerCount": 2 }
+                ]
+            }
+        },
+        {
+            "name": "ШОР Линия №50",
+            "limits": {
+                "temperature": { "min": 25, "max": 65, "warning_min": 35, "warning_max": 55 },
+                "humidity": { "min": 30, "max": 77, "warning_min": 32, "warning_max": 75 }
+            },
+            "device": {
+                "ip": "127.0.0.1",
+                "port": 505,
+                "sensors": [
+                    { "type": "temperature", "address": 2, "register": 2250, "registerCount": 2 },
+                    { "type": "humidity", "address": 2, "register": 2200, "registerCount": 2 }
+                ]
+            }
+        },
+        {
+            "name": "ШОР №1 \"Церос\"",
+            "limits": {
+                "temperature": { "min": 20, "max": 40, "warning_min": 35, "warning_max": 45 },
+                "humidity": { "min": 0, "max": 92, "warning_min": 5, "warning_max": 90 }
+            },
+            "device": {
+                "ip": "127.0.0.1",
+                "port": 506,
+                "sensors": [
+                    { "type": "temperature", "address": 2, "register": 2250, "registerCount": 2 },
+                    { "type": "humidity", "address": 2, "register": 2200, "registerCount": 2 }
+                ]
+            }
+        },
+        {
+            "name": "ШОР №2 \"Церос\"",
+            "limits": {
+                "temperature": { "min": 25, "max": 55, "warning_min": 26, "warning_max": 54 },
+                "humidity": { "min": 0, "max": 90, "warning_min": 5, "warning_max": 70 }
+            },
+            "device": {
+                "ip": "127.0.0.1",
+                "port": 507,
+                "sensors": [
+                    { "type": "temperature", "address": 2, "register": 2250, "registerCount": 2 },
+                    { "type": "humidity", "address": 2, "register": 2200, "registerCount": 2 }
                 ]
             }
         }

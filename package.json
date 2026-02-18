@@ -1,7 +1,7 @@
 {
-  "name": "storage-monitoring",
-  "version": "0.5.0",
-  "description": "Система мониторинга температуры и влажности на складах - Refactored Edition",
+  "name": "bakery-monitoring",
+  "version": "1.0",
+  "description": "Система мониторинга участков пекарни - NodeModbusSingle",
   "main": "src/server.js",
   "scripts": {
     "start": "cross-env LOG_LEVEL=ERROR nodemon src/server.js",

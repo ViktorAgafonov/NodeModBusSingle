@@ -1,18 +1,33 @@
 // Константы для приложения
 
-// Лимиты для датчиков
-export const SENSOR_LIMITS = {
-    temperature: {
-        min: -20,
-        max: 30,
-        warningMessage: 'Температура вне допустимого диапазона'
-    },
-    humidity: {
-        min: 30,
-        max: 50,
-        warningMessage: 'Влажность вне допустимого диапазона'
-    }
-};
+// Лимиты корректности датчиков (общие, заполняется из конфига)
+let sensorLimits = {};
+
+// Лимиты участков (ключ — sectionId)
+const sectionLimitsMap = new Map();
+
+// Инициализация обоих типов лимитов из конфига
+export function initLimits(config) {
+    sensorLimits = config?.sensorLimits || {};
+    sectionLimitsMap.clear();
+    if (!config?.sections) return;
+    config.sections.forEach(section => {
+        if (section.limits) {
+            sectionLimitsMap.set(section.id, section.limits);
+        }
+    });
+}
+
+// Лимиты корректности датчика по типу
+export function getSensorLimits(type) {
+    return sensorLimits[type] || null;
+}
+
+// Лимиты участка по sectionId и типу датчика
+export function getSectionLimits(sectionId, type) {
+    const limits = sectionLimitsMap.get(sectionId);
+    return limits?.[type] || null;
+}
 
 // Хранилище для графиков
 export const charts = new Map();
@@ -25,5 +40,5 @@ export const API_ENDPOINTS = {
     CURRENT_DATA: '/api/current',
     HISTORICAL_DATA: '/api/history',
     CONFIG: '/api/config',
-    STORAGE_HISTORY: (storageId) => `/api/storage/${storageId}/history`
+    SECTION_HISTORY: (sectionId) => `/api/section/${sectionId}/history`
 }; 

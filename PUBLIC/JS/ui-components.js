@@ -1,96 +1,94 @@
-// Компоненты интерфейса
-export function createStorageCard(storage) {
-    if (!storage.id) {
-        console.error('Объект склада без ID:', storage);
+﻿// Компоненты интерфейса
+export function createSectionCard(section) {
+    if (!section.id) {
+        console.error('Объект участка без ID:', section);
         return '';
     }
 
-    const temperatureSensors = storage.device.sensors.filter(sensor => sensor.type === 'temperature');
-    const humiditySensors = storage.device.sensors.filter(sensor => sensor.type === 'humidity');
-
-    // Функция для получения индекса цвета
-    const getColorIndex = (index) => {
-        const maxIndex = 5;
-        return (index % maxIndex) + 1;
-    };
+    const temperatureSensors = section.device.sensors.filter(sensor => sensor.type === 'temperature');
+    const humiditySensors = section.device.sensors.filter(sensor => sensor.type === 'humidity');
 
     return `
-        <div class="storage-card" data-storage="${storage.id}">
+        <div class="section-card" data-section="${section.id}">
             <div class="card-header">
-                <div class="header-content">
-                    <h2>${storage.name}</h2>
-                    <button class="history-btn" data-storage-id="${storage.id}" title="Показать историю всех датчиков">📊</button>
+                <h2>«${section.name}»</h2>
+                <div class="header-right">
+                    <div class="status-badge online">Онлайн</div>
+                    <button class="history-btn" data-section-id="${section.id}" title="Показать историю">📊</button>
                 </div>
-                <div class="warning-indicator" title="Есть датчики со значениями вне допустимого диапазона">
-                    <span class="warning-icon">⚠️</span>
-                </div>
-                <div class="status-indicator online"></div>
             </div>
-            <div class="card-content">
-                <div class="current-data">
-                    ${temperatureSensors.length > 0 ? `
-                        <div class="data-group temperature-group">
-                            <h3>Температура</h3>
-                            ${temperatureSensors.map((sensor, index) => `
-                                <div class="sensor-item">
-                                    <div class="group-icon temperature" style="background-color: var(--temperature-color-${getColorIndex(index)})"></div>
-                                    <span class="label">${sensor.name}:</span>
-                                    <span class="value-wrapper">
-                                        <span class="value" id="${sensor.id}" style="color: var(--temperature-color-${getColorIndex(index)})">--</span>
-                                        <span class="unit">°C</span>
-                                    </span>
-                                </div>
-                            `).join('')}
+            <div class="card-body">
+                <div class="temp-bars-vertical">
+                    ${temperatureSensors.map(sensor => `
+                        <div class="temp-bar-wrapper">
+                            <span class="bar-limit bar-limit-max">${section.limits?.temperature?.max ?? ''}</span>
+                            <div class="temp-bar-track">
+                                <div class="temp-bar-fill" data-sensor="${sensor.id}"></div>
+                            </div>
+                            <span class="bar-limit bar-limit-min">${section.limits?.temperature?.min ?? ''}</span>
                         </div>
-                    ` : ''}
-                    ${humiditySensors.length > 0 ? `
-                        <div class="data-group humidity-group">
-                            <h3>Влажность</h3>
-                            ${humiditySensors.map((sensor, index) => `
-                                <div class="sensor-item">
-                                    <div class="group-icon humidity" style="background-color: var(--humidity-color-${getColorIndex(index)})"></div>
-                                    <span class="label">${sensor.name}:</span>
-                                    <span class="value-wrapper">
-                                        <span class="value" id="${sensor.id}" style="color: var(--humidity-color-${getColorIndex(index)})">--</span>
-                                        <span class="unit">%</span>
-                                    </span>
-                                </div>
-                            `).join('')}
-                        </div>
-                    ` : ''}
+                    `).join('')}
                 </div>
-                <div class="chart-container" id="chart_container_${storage.id}">
-                    <canvas id="chart_${storage.id}"></canvas>
+                <div class="card-content">
+                    <div class="sensors-area">
+                        ${temperatureSensors.length > 0 ? `
+                            <div class="temp-block">
+                                <div class="temp-label">🌡️ Температура</div>
+                                ${temperatureSensors.map((sensor, index) => `
+                                    <div class="temp-value-row">
+                                        <span class="temp-value" id="${sensor.id}">--</span>
+                                        <span class="temp-unit">°C</span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        ` : ''}
+                        ${humiditySensors.length > 0 ? `
+                            <div class="humidity-block">
+                                <div class="humidity-label">💧 Влажность</div>
+                                ${humiditySensors.map((sensor, index) => `
+                                    <div class="humidity-value-row">
+                                        <span class="humidity-value" id="${sensor.id}">--</span>
+                                        <span class="humidity-unit">%</span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        ` : ''}
+                    </div>
+                    <div class="chart-area" id="chart_container_${section.id}">
+                        <canvas id="chart_${section.id}"></canvas>
+                    </div>
                 </div>
             </div>
         </div>
     `;
 }
 
-export function updateWarningIndicators(storageWarnings) {
-    storageWarnings.forEach((warning, storageId) => {
-        const warningIndicator = document.querySelector(`[data-storage="${storageId}"] .warning-indicator`);
-        if (warningIndicator) {
-            if (warning.hasWarning) {
-                warningIndicator.classList.add('active');
-                warningIndicator.title = Array.from(warning.messages).join('\n');
-            } else {
-                warningIndicator.classList.remove('active');
-            }
+export function updateWarningIndicators(sectionWarnings) {
+    sectionWarnings.forEach((warning, sectionId) => {
+        const card = document.querySelector(`[data-section="${sectionId}"]`);
+        if (!card) return;
+
+        card.classList.remove('warning-active', 'temperature-warning', 'humidity-warning');
+        if (warning.hasWarning) {
+            card.classList.add('warning-active');
+            if (warning.warningTypes.has('temperature')) card.classList.add('temperature-warning');
+            if (warning.warningTypes.has('humidity')) card.classList.add('humidity-warning');
         }
     });
 }
 
-export function updateStatusIndicators(storageStatuses) {
-    storageStatuses.forEach((isOnline, storageId) => {
-        const statusIndicator = document.querySelector(`[data-storage="${storageId}"] .status-indicator`);
-        if (statusIndicator) {
+export function updateStatusIndicators(sectionStatuses) {
+    sectionStatuses.forEach((isOnline, sectionId) => {
+        const badge = document.querySelector(`[data-section="${sectionId}"] .status-badge`);
+        if (badge) {
             if (!isOnline) {
-                statusIndicator.classList.remove('online');
-                statusIndicator.classList.add('offline');
+                badge.classList.remove('online');
+                badge.classList.add('offline');
+                badge.textContent = 'Офлайн';
             } else {
-                statusIndicator.classList.remove('offline');
-                statusIndicator.classList.add('online');
+                badge.classList.remove('offline');
+                badge.classList.add('online');
+                badge.textContent = 'Онлайн';
             }
         }
     });

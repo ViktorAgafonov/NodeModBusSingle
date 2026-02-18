@@ -1,96 +1,119 @@
-// Основной файл приложения
-import { SENSOR_LIMITS, charts, historyCache } from './constants.js';
-import { configureChartForRange, initChart, getStepInMilliseconds, scaleValueForDisplay, CHARTS_SETTINGS, mainLegendPlugin } from './chart-utils.js';
-import { fetchCurrentData, fetchHistoricalData, fetchConfig, isValueOutOfLimits } from './data-service.js';
-import { createStorageCard, updateWarningIndicators, updateStatusIndicators } from './ui-components.js';
+﻿// Основной файл приложения
+import { charts, historyCache, getSensorLimits, getSectionLimits, initLimits } from './constants.js';
+import { initChart, CHARTS_SETTINGS, mainLegendPlugin, initChartLimits } from './chart-utils.js';
+import { fetchCurrentData, fetchHistoricalData, fetchConfig, isSensorOutOfLimits, isSectionOutOfLimits, isSectionWarning } from './data-service.js';
+import { createSectionCard, updateWarningIndicators, updateStatusIndicators } from './ui-components.js';
 import { createHistoryModal, updateHistoryChart, initHistoryButtons } from './modal-history.js';
-import { debounce, createLazyObserver } from './utils.js';
-import { showConnectionError, hideConnectionError, retryConnection, markSensorsOffline, markStoragesOffline } from './error-handler.js';
+import { createLazyObserver } from './utils.js';
+import { showConnectionError, retryConnection, markSensorsOffline, markSectionsOffline } from './error-handler.js';
 
 const SETTINGS = {
-    timeRefresh: 5000,
-    debounceDelay: 300
+    timeRefresh: 5000
 };
 
 // Отслеживание загруженных графиков для lazy loading
 const loadedCharts = new Set();
 
-// Общая функция для обработки данных датчиков
-function processSensorData(data, type) {
-    if (!data || !Number.isFinite(data)) return null;
-
-    return {
-        value: data,
-        displayValue: data.toFixed(1),
-        unit: type === 'temperature' ? CHARTS_SETTINGS.temperature.unit : CHARTS_SETTINGS.humidity.unit,
-        yAxisID: type === 'humidity' ? 'y1' : 'y'
-    };
+// Проверка валидности значения датчика
+function isValidSensorValue(value) {
+    return value != null && Number.isFinite(value);
 }
 
 // Обновление данных
 async function updateData() {
     try {
         const data = await fetchCurrentData();
-        const storageWarnings = new Map();
-        const storageStatuses = new Map();
+        const sectionWarnings = new Map();
+        const sectionStatuses = new Map();
 
-        // Инициализируем все склады как оффлайн изначально
+        // Инициализируем все участки как оффлайн изначально
         data.temperature.forEach(sensor => {
-            const storageId = sensor.sensor_id.split('.')[0];
-            if (!storageStatuses.has(storageId)) {
-                storageStatuses.set(storageId, false);
+            const sectionId = sensor.sensor_id.split('.')[0];
+            if (!sectionStatuses.has(sectionId)) {
+                sectionStatuses.set(sectionId, false);
             }
         });
 
         [...data.temperature, ...data.humidity].forEach(sensor => {
             const element = document.getElementById(sensor.sensor_id);
-            const storageId = sensor.sensor_id.split('.')[0];
+            const sectionId = sensor.sensor_id.split('.')[0];
 
-            // Инициализируем состояния для склада
-            if (!storageWarnings.has(storageId)) {
-                storageWarnings.set(storageId, {
+            // Инициализируем состояния для участка
+            if (!sectionWarnings.has(sectionId)) {
+                sectionWarnings.set(sectionId, {
                     hasWarning: false,
+                    warningTypes: new Set(),
                     messages: new Set()
                 });
             }
 
             if (element) {
-                const sensorItem = element.closest('.sensor-item');
+                const valueRow = element.closest('.temp-value-row, .humidity-value-row');
 
                 // Проверяем статус датчика
                 if (sensor.error || sensor.value === null || sensor.status === 'offline') {
-                    element.textContent = 'Ошибка';
-                    sensorItem.classList.add('error');
-                    sensorItem.classList.remove('warning');
+                    element.textContent = 'Err';
+                    if (valueRow) valueRow.classList.add('error');
 
-                    // Если датчик offline, добавляем соответствующий класс
-                    if (sensor.status === 'offline') {
-                        sensorItem.classList.add('offline');
-                    } else {
-                        sensorItem.classList.remove('offline');
+                    // Обновляем прогресс-бар при ошибке
+                    const bar = document.querySelector(`.temp-bar-fill[data-sensor="${sensor.sensor_id}"]`);
+                    if (bar) {
+                        bar.style.height = '0%';
+                        bar.className = 'temp-bar-fill';
                     }
                 } else {
                     const value = sensor.value;
                     element.textContent = value.toFixed(1);
-                    sensorItem.classList.remove('error', 'offline');
+                    if (valueRow) valueRow.classList.remove('error');
 
-                    // Если есть валидные данные - помечаем склад как онлайн
-                    storageStatuses.set(storageId, true);
+                    // Если есть валидные данные - помечаем участок как онлайн
+                    sectionStatuses.set(sectionId, true);
 
-                    if (isValueOutOfLimits(value, sensor.type)) {
-                        const warningState = storageWarnings.get(storageId);
+                    // Обновляем прогресс-бар температуры (по лимитам участка)
+                    if (sensor.type === 'temperature') {
+                        const bar = document.querySelector(`.temp-bar-fill[data-sensor="${sensor.sensor_id}"]`);
+                        const secLimits = getSectionLimits(sectionId, 'temperature');
+                        if (bar && secLimits) {
+                            const pct = Math.max(0, Math.min(100, ((value - secLimits.min) / (secLimits.max - secLimits.min)) * 100));
+                            bar.style.height = pct + '%';
+                            bar.className = 'temp-bar-fill';
+                            if (value < secLimits.min || value > secLimits.max) bar.classList.add('critical');
+                            else if ((secLimits.warning_min != null && value < secLimits.warning_min) ||
+                                     (secLimits.warning_max != null && value > secLimits.warning_max)) bar.classList.add('warning');
+                        }
+                    }
+
+                    const warningState = sectionWarnings.get(sectionId);
+
+                    // Проверка корректности датчика
+                    if (isSensorOutOfLimits(value, sensor.type)) {
+                        const sensLimits = getSensorLimits(sensor.type);
                         warningState.hasWarning = true;
-                        warningState.messages.add(SENSOR_LIMITS[sensor.type].warningMessage + ' (' + SENSOR_LIMITS[sensor.type].min + ' .. ' + SENSOR_LIMITS[sensor.type].max + ')');
-                        sensorItem.classList.add('warning');
-                    } else {
-                        sensorItem.classList.remove('warning');
+                        warningState.warningTypes.add(sensor.type);
+                        warningState.messages.add((sensLimits?.warningMessage || 'Некорректные показания датчика') + ' (' + sensLimits?.min + ' .. ' + sensLimits?.max + ')');
+                    }
+
+                    // Проверка норм участка (выход за min/max)
+                    if (isSectionOutOfLimits(value, sectionId, sensor.type)) {
+                        const secLimits = getSectionLimits(sectionId, sensor.type);
+                        warningState.hasWarning = true;
+                        warningState.warningTypes.add(sensor.type);
+                        warningState.messages.add((secLimits?.warningMessage || 'Значение вне нормы участка') + ' (' + secLimits?.min + ' .. ' + secLimits?.max + ')');
+                    }
+
+                    // Проверка зоны предупреждения участка (warning_min/warning_max)
+                    if (isSectionWarning(value, sectionId, sensor.type)) {
+                        const secLimits = getSectionLimits(sectionId, sensor.type);
+                        warningState.hasWarning = true;
+                        warningState.warningTypes.add(sensor.type);
+                        warningState.messages.add('Внимание: значение в зоне предупреждения (' + secLimits?.warning_min + ' .. ' + secLimits?.warning_max + ')');
                     }
                 }
             }
         });
 
-        updateStatusIndicators(storageStatuses);
-        updateWarningIndicators(storageWarnings);
+        updateStatusIndicators(sectionStatuses);
+        updateWarningIndicators(sectionWarnings);
 
         return true; // Успешное обновление
     } catch (error) {
@@ -98,10 +121,10 @@ async function updateData() {
 
         markSensorsOffline();
 
-        // Помечаем все склады как оффлайн
-        const storageStatuses = new Map();
-        markStoragesOffline(storageStatuses);
-        updateStatusIndicators(storageStatuses);
+        // Помечаем все участки как оффлайн
+        const sectionStatuses = new Map();
+        markSectionsOffline(sectionStatuses);
+        updateStatusIndicators(sectionStatuses);
 
         // Показываем уведомление об ошибке соединения
         showConnectionError(updateData);
@@ -110,67 +133,40 @@ async function updateData() {
     }
 }
 
-// Основная функция обновления графиков (без debounce для периодических обновлений)
-async function updateChartsCore(range) {
+// Фиксированный интервал агрегации — 5 минут
+const STEP_MS = 5 * 60 * 1000;
+const MAX_GAP_MS = STEP_MS * 2;
+
+// Основная функция обновления графиков (всегда за 1 час)
+async function updateCharts() {
     try {
-        // Очищаем кэш для обеспечения получения свежих данных
         historyCache.clear();
 
-        const data = await fetchHistoricalData(range);
-        const activeButton = document.querySelector(`.time-range button[data-range="${range}"]`);
-        const step = activeButton ? activeButton.dataset.step : '5m';
+        const data = await fetchHistoricalData();
 
-        for (const [storageId, chart] of charts.entries()) {
-            // Если график ещё не инициализирован (lazy loading), инициализируем его сейчас
+        for (const [sectionId, chart] of charts.entries()) {
             let currentChart = chart;
             if (!currentChart) {
-                const canvas = document.getElementById(`chart_${storageId}`);
-                if (canvas && !loadedCharts.has(storageId)) {
-                    console.log(`Автоинициализация графика для склада ${storageId}`);
-                    currentChart = initChart(storageId, range, step);
-                    loadedCharts.add(storageId);
+                const canvas = document.getElementById(`chart_${sectionId}`);
+                if (canvas && !loadedCharts.has(sectionId)) {
+                    currentChart = initChart(sectionId);
+                    loadedCharts.add(sectionId);
                 }
-
-                // Если график всё ещё не инициализирован, пропускаем
-                if (!currentChart) {
-                    console.warn(`График для склада ${storageId} не может быть инициализирован`);
-                    continue;
-                }
+                if (!currentChart) continue;
             }
 
             try {
                 const datasets = [];
 
-                // Функция создания конфигурации для набора данных
                 const createDataset = (series, type, index) => {
-                    // Получаем цвет в зависимости от индекса датчика
-                    const getColorByIndex = (type, index) => {
-                        const maxIndex = CHARTS_SETTINGS.common.maxColors;
-                        const colorIndex = (index % maxIndex) + 1;
-                        const colorVar = `--${type}-color-${colorIndex}`;
-                        return getComputedStyle(document.documentElement).getPropertyValue(colorVar).trim();
-                    };
+                    const color = getComputedStyle(document.documentElement).getPropertyValue(`--${type}-color`).trim();
 
-                    const processedData = series.data.map(point => {
-                        const processed = processSensorData(point.y, type);
-                        return {
+                    const processedData = series.data
+                        .filter(point => isValidSensorValue(point.y))
+                        .map(point => ({
                             x: window.dayjs(point.x, 'YYYY-MM-DD HH:mm:ss').valueOf(),
-                            y: processed ? processed.value : null
-                        };
-                    }).filter(point => point.y !== null);
-
-                    const color = getColorByIndex(type, index);
-
-                    // Определяем шаг в миллисекундах
-                    const stepUnit = step.replace(/[0-9]/g, '') === 'm' ? 'minute' :
-                        step.replace(/[0-9]/g, '') === 'h' ? 'hour' : 'day';
-                    const stepValue = parseInt(step);
-                    const stepMs = getStepInMilliseconds(stepValue, stepUnit);
-
-                    // Определяем ожидаемый интервал между точками
-                    const expectedInterval = stepMs;
-                    // Определяем максимально допустимый интервал (в 2 раза больше ожидаемого)
-                    const maxAllowedInterval = expectedInterval * 2;
+                            y: point.y
+                        }));
 
                     return {
                         label: `${series.name}`,
@@ -181,12 +177,7 @@ async function updateChartsCore(range) {
                         segment: {
                             borderDash: ctx => {
                                 const gap = ctx.p1.parsed.x - ctx.p0.parsed.x;
-
-                                if (gap > maxAllowedInterval) {
-                                    return [5, 5]; // Пунктирная линия
-                                }
-
-                                return undefined; // Сплошная линия
+                                return gap > MAX_GAP_MS ? [5, 5] : undefined;
                             }
                         },
                         yAxisID: type === 'humidity' ? 'y1' : 'y',
@@ -195,15 +186,14 @@ async function updateChartsCore(range) {
                     };
                 };
 
-                // Фильтруем данные только для текущего склада
                 data.temperature.forEach((series, index) => {
-                    if (series.storageId === storageId) {
+                    if (series.sectionId === sectionId) {
                         datasets.push(createDataset(series, 'temperature', index));
                     }
                 });
 
                 data.humidity.forEach((series, index) => {
-                    if (series.storageId === storageId) {
+                    if (series.sectionId === sectionId) {
                         datasets.push(createDataset(series, 'humidity', index));
                     }
                 });
@@ -214,17 +204,15 @@ async function updateChartsCore(range) {
                     currentChart.options.plugins.title.display = false;
                 }
 
-                configureChartForRange(currentChart, range, step);
-                currentChart.update('none'); // Оптимизация: без анимации для быстрых обновлений
+                currentChart.update('none');
 
-                // Обновляем пользовательскую легенду
                 const legendContainer = document.getElementById(`legend-${currentChart.canvas.id}`);
                 if (legendContainer) {
                     mainLegendPlugin.afterDraw(currentChart);
                 }
             } catch (error) {
-                console.error(`Ошибка обновления графика для склада ${storageId}:`, error);
-                const chartContainer = document.getElementById(`chart_container_${storageId}`);
+                console.error(`Ошибка обновления графика для участка ${sectionId}:`, error);
+                const chartContainer = document.getElementById(`chart_container_${sectionId}`);
                 if (chartContainer) {
                     chartContainer.innerHTML = `<div class="error-message"><p>Ошибка обновления графика: ${error.message}</p></div>`;
                 }
@@ -234,32 +222,23 @@ async function updateChartsCore(range) {
         // Обновляем график в модальном окне, если оно открыто
         const modalCanvas = document.querySelector('.modal canvas');
         if (modalCanvas) {
-            // Извлекаем storageId из id canvas'а, удаляя префикс 'storage_history_chart_'
-            const storageId = modalCanvas.id.replace('storage_history_chart_', '');
+            const sectionId = modalCanvas.id.replace('section_history_chart_', '');
             const chart = Chart.getChart(modalCanvas);
             if (chart) {
                 try {
-                    updateHistoryChart(chart, storageId, range, step);
+                    updateHistoryChart(chart, sectionId);
                 } catch (error) {
-                    console.error(`Ошибка обновления графика в модальном окне для склада ${storageId}:`, error);
-                    const modalBody = modalCanvas.closest('.modal-body');
-                    if (modalBody) {
-                        modalBody.innerHTML = `<div class="error-message"><p>Ошибка обновления графика: ${error.message}</p></div>`;
-                    }
+                    console.error(`Ошибка обновления графика в модальном окне для участка ${sectionId}:`, error);
                 }
             }
         }
     } catch (error) {
         console.error('Ошибка получения исторических данных:', error);
-        // Отображаем ошибку во всех контейнерах графиков
         document.querySelectorAll('.chart-container').forEach(container => {
             container.innerHTML = `<div class="error-message"><p>Ошибка получения данных: ${error.message}</p></div>`;
         });
     }
 }
-
-// Debounced версия для кнопок переключения диапазона
-const updateCharts = debounce(updateChartsCore, SETTINGS.debounceDelay);
 
 // Lazy loading для графиков
 function initLazyChartLoading(config) {
@@ -269,16 +248,15 @@ function initLazyChartLoading(config) {
                 const container = entry.target;
                 const canvas = container.querySelector('canvas');
                 if (canvas) {
-                    const storageId = canvas.id.replace('chart_', '');
+                    const sectionId = canvas.id.replace('chart_', '');
 
                     // Проверяем, не загружен ли уже график
-                    if (!loadedCharts.has(storageId)) {
-                        console.log(`Lazy loading chart for ${storageId}`);
+                    if (!loadedCharts.has(sectionId)) {
                         try {
-                            initChart(storageId, '1h', '5m');
-                            loadedCharts.add(storageId);
+                            initChart(sectionId);
+                            loadedCharts.add(sectionId);
                         } catch (error) {
-                            console.error(`Ошибка lazy loading графика для ${storageId}:`, error);
+                            console.error(`Ошибка lazy loading графика для ${sectionId}:`, error);
                         }
                     }
 
@@ -313,16 +291,16 @@ function initAboutButton() {
                     <button class="modal-close-btn">&times;</button>
                 </div>
                 <div class="modal-body">
-                    <p>Система мониторинга климата холодных складов</p>
-                    <p>Версия: 0.4</p>
-                    <p>Разработано: 2025 г.</p>
+                    <p>Система мониторинга участков пекарни</p>
+                    <p>Версия: 1.0</p>
+                    <p>Разработано: 2026 г.</p>
                 </div>
                 <div class="modal-body">
                     <p style="font-weight: bold; font-size: 15px;">Функциональность:</p>
                     <ul>
                         <li>Мониторинг температуры и влажности в реальном времени.</li>
                         <li>Отображение исторических данных.</li>
-                        <li>Настраиваемые временные диапазоны.</li>
+                        <li>Отображение графиков за последний час.</li>
                         <li>Оповещения о выходе параметров за допустимые пределы.</li>
                     </ul>
                 </div>
@@ -347,20 +325,37 @@ function initAboutButton() {
     });
 }
 
+// Часы в шапке — дата слева, время справа
+function initHeaderClock() {
+    const dateEl = document.getElementById('headerDate');
+    const timeEl = document.getElementById('headerTime');
+    if (!dateEl || !timeEl) return;
+
+    function tick() {
+        const now = new Date();
+        dateEl.textContent = now.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        timeEl.textContent = now.toLocaleTimeString('ru-RU');
+    }
+    tick();
+    setInterval(tick, 1000);
+}
+
 // Инициализация приложения
 document.addEventListener('DOMContentLoaded', async () => {
     try {
         const config = await fetchConfig();
-        const container = document.getElementById('storagesContainer');
+        initLimits(config);
+        initChartLimits(config);
+        const container = document.getElementById('sectionsContainer');
 
         // Создаем карточки
-        const cardsHTML = config.storages.map(storage => createStorageCard(storage)).join('');
+        const cardsHTML = config.sections.map(section => createSectionCard(section)).join('');
         container.innerHTML = cardsHTML;
 
-        // Регистрируем все склады в charts Map (даже если графики ещё не инициализированы)
-        config.storages.forEach(storage => {
-            if (!charts.has(storage.id)) {
-                charts.set(storage.id, null); // null означает, что график ещё не инициализирован
+        // Регистрируем все участки в charts Map (даже если графики ещё не инициализированы)
+        config.sections.forEach(section => {
+            if (!charts.has(section.id)) {
+                charts.set(section.id, null); // null означает, что график ещё не инициализирован
             }
         });
 
@@ -389,57 +384,27 @@ document.addEventListener('DOMContentLoaded', async () => {
             retryConnection(updateData);
         }
 
-        // Получаем активный диапазон
-        const activeButton = document.querySelector('.time-range button.active');
-        const range = activeButton.dataset.range;
-
         // Обновляем графики только если данные успешно обновлены
         if (success) {
-            await updateChartsCore(range);
+            await updateCharts();
         }
 
-        // Настраиваем обработчики для кнопок временного диапазона с debounce
-        const debouncedButtonClick = debounce(async (button) => {
-            // Убираем активный класс у всех кнопок
-            document.querySelectorAll('.time-range button').forEach(btn => {
-                btn.classList.remove('active');
-            });
+        // Запускаем часы в шапке
+        initHeaderClock();
 
-            // Добавляем активный класс текущей кнопке
-            button.classList.add('active');
-
-            // Получаем диапазон из атрибута
-            const newRange = button.dataset.range;
-
-            // Обновляем графики для нового диапазона
-            await updateCharts(newRange);
-        }, SETTINGS.debounceDelay);
-
-        document.querySelectorAll('.time-range button').forEach(button => {
-            button.addEventListener('click', () => {
-                debouncedButtonClick(button);
-            });
-        });
-
-        // Настраиваем периодическое обновление данных
+        // Периодическое обновление данных и графиков
         setInterval(async () => {
             const success = await updateData();
             if (!success) {
                 retryConnection(updateData);
             } else {
-                // Обновляем графики после успешного обновления данных
-                // Используем updateChartsCore напрямую, чтобы обойти debounce
-                const activeButton = document.querySelector('.time-range button.active');
-                if (activeButton) {
-                    const currentRange = activeButton.dataset.range;
-                    await updateChartsCore(currentRange);
-                }
+                await updateCharts();
             }
         }, SETTINGS.timeRefresh);
 
     } catch (error) {
         console.error('Ошибка инициализации приложения:', error);
-        document.getElementById('storagesContainer').innerHTML = `
+        document.getElementById('sectionsContainer').innerHTML = `
             <div class="error-message">
                 <p>Ошибка инициализации приложения: ${error.message}</p>
                 <p>Пожалуйста, обновите страницу или попробуйте позже.</p>

@@ -13,15 +13,15 @@
         "valueChanges": {
             "temperature": {
                 "register": 2250,
-                "min_value": -20,
-                "max_value": 40,
-                "change": 5.3
+                "min_value": 18,
+                "max_value": 38,
+                "change": 1.5
             },
             "humidity": {
                 "register": 2200,
-                "min_value": 0,
-                "max_value": 100,
-                "change": 2.2
+                "min_value": 25,
+                "max_value": 55,
+                "change": 1.0
             }
         }
     }

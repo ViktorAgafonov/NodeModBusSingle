@@ -1,16 +1,9 @@
-/**
+﻿/**
  * Мок-сервер Modbus TCP для тестового окружения
  * 
- * Этот сервер эмулирует несколько Modbus TCP устройств для тестирования
- * системы мониторинга без необходимости подключения к реальному оборудованию.
- * 
- * Поддерживаемые устройства:
- * 127.0.0.1:502 (Склад 1):
- * - 2200-2201: Влажность (базовое значение из конфигурации)
- * - 2250-2251: Температура (базовое значение из конфигурации)
- * 127.0.0.1:503 (Склад 2):
- * - 2200-2201: Влажность (базовое значение из конфигурации)
- * - 2250-2251: Температура (базовое значение из конфигурации)
+ * Эмулирует Modbus TCP устройства для участков ШОР.
+ * Порты берутся из config.sections[].device.port.
+ * Регистры: 2200-2201 (влажность), 2250-2251 (температура).
  * 
  * Запуск: node mock-modbus-server.js
  * Или через npm test (автоматически)
@@ -40,17 +33,19 @@ const calculateBaseValues = () => {
 
 const calculatedBase = calculateBaseValues();
 
-// Базовые значения для каждого склада (одинаковые, так как это один эмулятор)
-const baseValues = {
-    502: {
+// Порты из конфигурации sections
+const sectionPorts = (config.sections || []).map(s => s.device.port);
+const sectionNames = {};
+(config.sections || []).forEach(s => { sectionNames[s.device.port] = s.name; });
+
+// Базовые значения для каждого участка
+const baseValues = {};
+sectionPorts.forEach(port => {
+    baseValues[port] = {
         humidity: calculatedBase.humidity,
         temperature: calculatedBase.temperature
-    },
-    503: {
-        humidity: calculatedBase.humidity,
-        temperature: calculatedBase.temperature
-    }
-};
+    };
+});
 
 // Текущие значения (копия базовых)
 let deviceValues = JSON.parse(JSON.stringify(baseValues));
@@ -84,7 +79,8 @@ function updateValues() {
         }
     });
     
-    logger.debug(`[Мок-сервер] Обновлены значения: Склад 1 (${deviceValues[502].temperature.toFixed(1)}°C, ${deviceValues[502].humidity.toFixed(1)}%), Склад 2 (${deviceValues[503].temperature.toFixed(1)}°C, ${deviceValues[503].humidity.toFixed(1)}%)`);
+    const summary = Object.keys(deviceValues).map(p => `${sectionNames[p] || p} (${deviceValues[p].temperature.toFixed(1)}°C, ${deviceValues[p].humidity.toFixed(1)}%)`).join(', ');
+    logger.debug(`[Мок-сервер] Обновлены значения: ${summary}`);
 }
 
 // Обновляем значения согласно интервалу из конфигурации
@@ -215,12 +211,8 @@ function createServerForPort(port) {
     });
 
     server.listen(port, '127.0.0.1', () => {
-        logger.info(`[Мок-сервер :${port}] Modbus TCP мок-сервер запущен на 127.0.0.1:${port}`);
-        if (port === 502) {
-            logger.info(`[Мок-сервер :${port}] Склад 1 - Регистры: 2200-2201 (влажность), 2250-2251 (температура)`);
-        } else if (port === 503) {
-            logger.info(`[Мок-сервер :${port}] Склад 2 - Регистры: 2200-2201 (влажность), 2250-2251 (температура)`);
-        }
+        const name = sectionNames[port] || `Порт ${port}`;
+        logger.info(`[Мок-сервер :${port}] ${name} — запущен на 127.0.0.1:${port}`);
     });
 
     server.on('error', (err) => {
@@ -233,9 +225,9 @@ function createServerForPort(port) {
     return server;
 }
 
-// Создаем серверы для обоих портов
+// Создаем серверы для всех участков
 const servers = [];
-const ports = [502, 503];
+const ports = sectionPorts;
 
 ports.forEach(port => {
     try {

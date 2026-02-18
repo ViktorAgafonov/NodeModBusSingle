@@ -40,8 +40,8 @@ export const CHARTS_SETTINGS = {
                     title: function(tooltipItems) {
                         return window.dayjs(tooltipItems[0].parsed.x).format('DD.MM.YYYY HH:mm');
                     },
-                    labell: function(context) {
-                        return `${context.parsed.y.toFixed(1)} = `;
+                    label: function(context) {
+                        return `${context.parsed.y.toFixed(1)}`;
                     }
                 }
             },
@@ -54,61 +54,43 @@ export const CHARTS_SETTINGS = {
                     }
                 }
             }
-        },
-        maxColors: 5 // Максимальное количество цветов для датчиков
+        }
     },
-    // Настройки для температуры
+    // Настройки для температуры (min/max обновляются из конфига через initChartLimits)
     temperature: {
-        min: -25,
-        max: 45,
+        min: null,
+        max: null,
         step: 5,
         unit: '°C',
         title: 'Температура',
         icon: '🌡️'
     },
-    // Настройки для влажности
+    // Настройки для влажности (min/max обновляются из конфига через initChartLimits)
     humidity: {
-        min: 0,
-        max: 60,
+        min: null,
+        max: null,
         step: 5,
         unit: '%',
         title: 'Влажность',
         icon: '💧'
-    },
-    // Настройки временных диапазонов
-    timeRanges: {
-        '1h': {
-            unit: 'minute',
-            stepSize: 5,
-            displayFormat: 'HH:mm',
-            maxTicksLimit: 12,
-            title: '1 час'
-        },
-        '24h': {
-            unit: 'hour',
-            stepSize: 1,
-            displayFormat: 'HH:mm',
-            maxTicksLimit: 24,
-            title: '24 часа'
-        },
-        '14d': {
-            unit: 'hour',
-            stepSize: 12,
-            displayFormat: 'DD.MM-HH:mm',
-            maxTicksLimit: 28,
-            title: '2 недели'
-        },
-        '60d': {
-            unit: 'day',
-            stepSize: 1,
-            displayFormat: 'DD.MM.YY',
-            maxTicksLimit: 12,
-            title: '2 месяца'
-        }
     }
 };
 
 import { charts } from './constants.js';
+
+// Инициализация шкал графиков из sensorLimits конфига
+export function initChartLimits(config) {
+    const sl = config?.sensorLimits;
+    if (!sl) return;
+    if (sl.temperature) {
+        CHARTS_SETTINGS.temperature.min = sl.temperature.min;
+        CHARTS_SETTINGS.temperature.max = sl.temperature.max;
+    }
+    if (sl.humidity) {
+        CHARTS_SETTINGS.humidity.min = sl.humidity.min;
+        CHARTS_SETTINGS.humidity.max = sl.humidity.max;
+    }
+}
 
 // Фабрика для создания графиков
 export function createChart(ctx, options = {}, plugins = []) {
@@ -125,11 +107,6 @@ export function createChart(ctx, options = {}, plugins = []) {
         },
         options: {
             ...CHARTS_SETTINGS.common,
-            maintainAspectRatio: false,
-            responsive: true,
-            animation: {
-                duration: 0
-            },
             plugins: {
                 title: {
                     display: false // Отключаем заголовок по умолчанию
@@ -152,13 +129,7 @@ export function createChart(ctx, options = {}, plugins = []) {
                         display: false
                     },
                     ticks: {
-                        maxTicksLimit: 12,
-                        autoSkip: true,
-                        maxRotation: 45,
-                        minRotation: 45,
-                        font: {
-                            size: 10
-                        }
+                        display: false
                     }
                 },
                 y: {
@@ -167,18 +138,15 @@ export function createChart(ctx, options = {}, plugins = []) {
                     min: CHARTS_SETTINGS.temperature.min,
                     max: CHARTS_SETTINGS.temperature.max,
                     title: {
-                        display: true,
-                        text: `${CHARTS_SETTINGS.temperature.title} (${CHARTS_SETTINGS.temperature.unit})`,
-                        font: {
-                            size: 16
-                        }
+                        display: false
                     },
                     grid: {
                         color: 'rgba(0, 0, 0, 0.05)'
                     },
                     ticks: {
                         stepSize: CHARTS_SETTINGS.temperature.step,
-                        callback: value => value + CHARTS_SETTINGS.temperature.unit
+                        callback: value => value + CHARTS_SETTINGS.temperature.unit,
+                        font: { size: 8 }
                     }
                 },
                 y1: {
@@ -187,18 +155,15 @@ export function createChart(ctx, options = {}, plugins = []) {
                     min: CHARTS_SETTINGS.humidity.min,
                     max: CHARTS_SETTINGS.humidity.max,
                     title: {
-                        display: true,
-                        text: `${CHARTS_SETTINGS.humidity.title} (${CHARTS_SETTINGS.humidity.unit})`,
-                        font: {
-                            size: 16
-                        }
+                        display: false
                     },
                     grid: {
                         display: false
                     },
                     ticks: {
                         stepSize: CHARTS_SETTINGS.humidity.step,
-                        callback: value => value + CHARTS_SETTINGS.humidity.unit
+                        callback: value => value + CHARTS_SETTINGS.humidity.unit,
+                        font: { size: 8 }
                     }
                 }
             }
@@ -212,88 +177,27 @@ export function createChart(ctx, options = {}, plugins = []) {
     return new Chart(ctx, mergedOptions);
 }
 
-// Утилиты для работы с графиками
-export function configureChartForRange(chart, range, step) {
-    const rangeSettings = CHARTS_SETTINGS.timeRanges[range];
-    if (!rangeSettings) return;
-    
-    // Определяем единицу измерения времени из шага
-    const timeUnit = step.endsWith('m') ? 'minute' : 
-                    step.endsWith('h') ? 'hour' : 'day';
-    
-    // Устанавливаем базовые настройки временной шкалы
-    chart.options.scales.x.time.unit = timeUnit;
-    chart.options.scales.x.time.stepSize = parseInt(step);
-    
-    // Применяем настройки из конфигурации диапазона
-    if (rangeSettings) {
-        chart.options.scales.x.time.unit = rangeSettings.unit;
-        chart.options.scales.x.time.stepSize = rangeSettings.stepSize;
-        
-        // Устанавливаем форматы отображения дат
-        chart.options.scales.x.time.displayFormats = { 
-            minute: 'HH:mm',
-            hour: 'DD.MM HH:mm',
-            day: 'DD.MM.YY'
-        };
-        
-        // Устанавливаем максимальное количество делений на оси
-        chart.options.scales.x.ticks.maxTicksLimit = rangeSettings.maxTicksLimit;
-    }
-    
-    // Обновляем настройки для пунктирных линий
-    const stepUnit = step.replace(/[0-9]/g, '') === 'm' ? 'minute' : 
-                     step.replace(/[0-9]/g, '') === 'h' ? 'hour' : 'day';
-    const stepValue = parseInt(step);
-    const stepMs = getStepInMilliseconds(stepValue, stepUnit);
-    
-    // Определяем ожидаемый интервал между точками
-    const expectedInterval = stepMs;
-    // Определяем максимально допустимый интервал (в 2 раза больше ожидаемого)
-    const maxAllowedInterval = expectedInterval * 2;
-    
-    // Обновляем настройки сегментов для всех датасетов
-    chart.data.datasets.forEach(dataset => {
-        dataset.segment = {
-            borderDash: ctx => {
-                // Получаем временной интервал между точками
-                const gap = ctx.p1.parsed.x - ctx.p0.parsed.x;
-                
-                // Если интервал больше максимально допустимого, значит данных нет
-                if (gap > maxAllowedInterval) {
-                    return [5, 5]; // Пунктирная линия
-                }
-                
-                return undefined; // Сплошная линия
-            }
-        };
-    });
-}
-
-export function initChart(storageId, initialRange = '1h', initialStep = '5m') {
-    const ctx = document.getElementById(`chart_${storageId}`);
+export function initChart(sectionId) {
+    const ctx = document.getElementById(`chart_${sectionId}`);
     if (!ctx) {
-        console.error(`Canvas not found for storage ${storageId}`);
+        console.error(`Canvas not found for section ${sectionId}`);
         return null;
     }
 
     const chart = createChart(ctx.getContext('2d'), {
         options: {
-            maintainAspectRatio: false,
-            responsive: true,
             plugins: {
                 legend: {
-                    display: false // Отключаем встроенную легенду
+                    display: false
                 },
                 title: {
-                    display: false // Отключаем заголовок
+                    display: false
                 }
             }
         }
     }, [mainLegendPlugin]);
     
-    configureChartForRange(chart, initialRange, initialStep);
-    charts.set(storageId, chart);
+    charts.set(sectionId, chart);
     return chart;
 }
 
@@ -315,41 +219,6 @@ function mergeDeep(target, source) {
     });
     
     return target;
-}
-
-// Вспомогательная функция для конвертации шага в миллисекунды
-export function getStepInMilliseconds(stepSize, unit) {
-    const msInMinute = 60 * 1000;
-    const msInHour = 60 * msInMinute;
-    const msInDay = 24 * msInHour;
-    
-    switch(unit) {
-        case 'minute':
-            return stepSize * msInMinute;
-        case 'hour':
-            return stepSize * msInHour;
-        case 'day':
-            return stepSize * msInDay;
-        default:
-            return msInMinute; // По умолчанию 1 минута
-    }
-}
-
-// Функция масштабирования значений для отображения
-export function scaleValueForDisplay(value, sensorType) {
-    if (!value || !Number.isFinite(value)) return null;
-
-    // Для влажности просто ограничиваем значение в диапазоне 0-100
-    if (sensorType === 'humidity') {
-        return Math.max(0, Math.min(100, value));
-    }
-    
-    // Для температуры ограничиваем значение в диапазоне min-max
-    if (sensorType === 'temperature') {
-        return Math.max(CHARTS_SETTINGS.temperature.min, Math.min(CHARTS_SETTINGS.temperature.max, value));
-    }
-    
-    return value;
 }
 
 // Плагин для создания пользовательской легенды

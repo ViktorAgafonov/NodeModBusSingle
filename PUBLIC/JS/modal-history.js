@@ -1,6 +1,6 @@
-// Импортируем необходимые функции
-import { configureChartForRange, createChart, CHARTS_SETTINGS, getStepInMilliseconds } from './chart-utils.js';
-import { fetchStorageHistory } from './data-service.js';
+﻿// Импортируем необходимые функции
+import { createChart, CHARTS_SETTINGS } from './chart-utils.js';
+import { fetchSectionHistory } from './data-service.js';
 
 // Плагин для создания пользовательской легенды
 const customLegendPlugin = {
@@ -106,19 +106,19 @@ const customLegendPlugin = {
 };
 
 // Функция создания модального окна с историей
-export function createHistoryModal(storageId, storageName) {
+export function createHistoryModal(sectionId, sectionName) {
     // Создаем модальное окно
     const modal = document.createElement('div');
     modal.className = 'modal';
     modal.innerHTML = `
         <div class="modal-content">
             <div class="modal-header">
-                <h3>История датчиков склада "${storageName}"</h3>
+                <h3>История датчиков участка "${sectionName}"</h3>
                 <button class="modal-close-btn">&times;</button>
             </div>
             <div class="modal-body">
-                <div id="legend-storage_history_chart_${storageId}" class="custom-legend"></div>
-                <canvas id="storage_history_chart_${storageId}"></canvas>
+                <div id="legend-section_history_chart_${sectionId}" class="custom-legend"></div>
+                <canvas id="section_history_chart_${sectionId}"></canvas>
             </div>
         </div>
     `;
@@ -137,23 +137,15 @@ export function createHistoryModal(storageId, storageName) {
         }
     };
 
-    // Получаем текущий активный диапазон из основного окна
-    const activeButton = document.querySelector('.time-range button.active');
-    const range = activeButton.dataset.range;
-    const step = activeButton.dataset.step;
-
-    // Настройки временной шкалы в зависимости от диапазона
-    const timeUnit = CHARTS_SETTINGS.timeRanges[range]?.unit || 'hour';
-
     try {
         // Инициализация графика с использованием фабрики
-        const ctx = modal.querySelector(`#storage_history_chart_${storageId}`).getContext('2d');
+        const ctx = modal.querySelector(`#section_history_chart_${sectionId}`).getContext('2d');
         const chart = createChart(ctx, {
             options: {
                 plugins: {
                     title: {
                         display: true,
-                        text: `Показания всех отслеживаемых датчиков склада (за ${getTimeRangeTitle(range)}). Максимальные значения.`
+                        text: 'Показания датчиков участка за последний час. Максимальные значения.'
                     },
                     legend: {
                         display: false // Отключаем встроенную легенду
@@ -168,8 +160,7 @@ export function createHistoryModal(storageId, storageName) {
             throw new Error('Не удалось создать график. Возможно, не загружена библиотека Chart.js');
         }
 
-        // Загружаем данные для текущего диапазона
-        updateHistoryChart(chart, storageId, range, step);
+        updateHistoryChart(chart, sectionId);
 
         return modal;
     } catch (error) {
@@ -186,111 +177,34 @@ export function createHistoryModal(storageId, storageName) {
     }
 }
 
-// Функция получения заголовка для временного диапазона
-function getTimeRangeTitle(range) {
-    return CHARTS_SETTINGS.timeRanges[range]?.title || CHARTS_SETTINGS.timeRanges['24h'].title;
-}
-
-// Функция обновления графика для всех датчиков склада
-export async function updateHistoryChart(chart, storageId, range, step) {
+// Функция обновления графика для всех датчиков участка (всегда за 1 час)
+export async function updateHistoryChart(chart, sectionId) {
     try {
-        const apiRange = range || '24h';
-        
-        const storageData = await fetchStorageHistory(storageId, apiRange);
+        const storageData = await fetchSectionHistory(sectionId);
 
         const datasets = [];
         
-        // Получаем цвет в зависимости от индекса датчика
-        const getColorByIndex = (type, index) => {
-            const maxIndex = CHARTS_SETTINGS.common.maxColors;
-            const colorIndex = (index % maxIndex) + 1;
-            const colorVar = `--${type}-color-${colorIndex}`;
-            return getComputedStyle(document.documentElement).getPropertyValue(colorVar).trim();
-        };
-        
-        // Получаем шаг в миллисекундах
-        const stepUnit = step.replace(/[0-9]/g, '') === 'm' ? 'minute' : 
-                         step.replace(/[0-9]/g, '') === 'h' ? 'hour' : 'day';
-        const stepValue = parseInt(step);
-        const stepMs = getStepInMilliseconds(stepValue, stepUnit);
-        
-        // Определяем ожидаемый интервал между точками
-        const expectedInterval = stepMs;
-        // Определяем максимально допустимый интервал (в 2 раза больше ожидаемого)
-        const maxAllowedInterval = expectedInterval * 2;
-        
-        // Добавляем датчики температуры
-        storageData.temperature.forEach((series, index) => {
-            datasets.push({
-                label: `${CHARTS_SETTINGS.temperature.icon} ${series.name}`,
-                data: series.data.map(point => {
-                    // Правильно преобразуем строку даты в timestamp
-                    const timestamp = window.dayjs(point.x, 'YYYY-MM-DD HH:mm:ss').valueOf();
-                    return {
-                        x: timestamp,
-                        y: point.y
-                    };
-                }),
-                borderColor: getColorByIndex('temperature', index),
-                backgroundColor: 'transparent',
-                segment: {
-                    borderDash: ctx => {
-                        // Получаем временной интервал между точками
-                        const gap = ctx.p1.parsed.x - ctx.p0.parsed.x;
-                        
-                        // Если интервал больше максимально допустимого, значит данных нет
-                        if (gap > maxAllowedInterval) {
-                            return [5, 5]; // Пунктирная линия
-                        }
-                        
-                        return undefined; // Сплошная линия
-                    }
-                },
-                yAxisID: 'y'
-            });
+        const getColor = (type) => getComputedStyle(document.documentElement).getPropertyValue(`--${type}-color`).trim();
+        const MAX_GAP_MS = 10 * 60 * 1000;
+
+        const createDataset = (series, type) => ({
+            label: `${CHARTS_SETTINGS[type].icon} ${series.name}`,
+            data: series.data.map(point => ({
+                x: window.dayjs(point.x, 'YYYY-MM-DD HH:mm:ss').valueOf(),
+                y: point.y
+            })),
+            borderColor: getColor(type),
+            backgroundColor: 'transparent',
+            segment: {
+                borderDash: ctx => (ctx.p1.parsed.x - ctx.p0.parsed.x > MAX_GAP_MS) ? [5, 5] : undefined
+            },
+            yAxisID: type === 'humidity' ? 'y1' : 'y'
         });
 
-        // Добавляем датчики влажности
-        storageData.humidity.forEach((series, index) => {
-            datasets.push({
-                label: `${CHARTS_SETTINGS.humidity.icon} ${series.name}`,
-                data: series.data.map(point => {
-                    // Правильно преобразуем строку даты в timestamp
-                    const timestamp = window.dayjs(point.x, 'YYYY-MM-DD HH:mm:ss').valueOf();
-                    return {
-                        x: timestamp,
-                        y: point.y
-                    };
-                }),
-                borderColor: getColorByIndex('humidity', index),
-                backgroundColor: 'transparent',
-                segment: {
-                    borderDash: ctx => {
-                        // Получаем временной интервал между точками
-                        const gap = ctx.p1.parsed.x - ctx.p0.parsed.x;
-                        
-                        // Если интервал больше максимально допустимого, значит данных нет
-                        if (gap > maxAllowedInterval) {
-                            return [5, 5]; // Пунктирная линия
-                        }
-                        
-                        return undefined; // Сплошная линия
-                    }
-                },
-                yAxisID: 'y1'
-            });
-        });
+        storageData.temperature.forEach(series => datasets.push(createDataset(series, 'temperature')));
+        storageData.humidity.forEach(series => datasets.push(createDataset(series, 'humidity')));
 
         chart.data.datasets = datasets;
-        
-        // Настраиваем отображение в зависимости от диапазона
-        if (step) {
-            configureChartForRange(chart, range, step);
-        }
-        
-        // Убеждаемся, что шкалы имеют правильные настройки
-        chart.options.scales.y.ticks.stepSize = CHARTS_SETTINGS.temperature.step;
-        chart.options.scales.y1.ticks.stepSize = CHARTS_SETTINGS.humidity.step;
         
         chart.update();
         
@@ -305,9 +219,9 @@ export async function updateHistoryChart(chart, storageId, range, step) {
 export function initHistoryButtons() {
     document.querySelectorAll('.history-btn').forEach(btn => {
         btn.onclick = () => {
-            const storageId = btn.dataset.storageId;
-            const storageName = btn.closest('.card-header').querySelector('h2').textContent;
-            createHistoryModal(storageId, storageName);
+            const sectionId = btn.dataset.sectionId;
+            const sectionName = btn.closest('.card-header').querySelector('h2').textContent;
+            createHistoryModal(sectionId, sectionName);
         };
     });
 } 

@@ -1,4 +1,4 @@
-import { SENSOR_LIMITS, API_ENDPOINTS, historyCache } from './constants.js';
+import { API_ENDPOINTS, historyCache, getSensorLimits, getSectionLimits } from './constants.js';
 
 // Базовая функция для выполнения HTTP-запросов
 async function fetchAPI(url, options = {}, retries = 2) {
@@ -30,14 +30,30 @@ async function fetchAPI(url, options = {}, retries = 2) {
     }
 }
 
-// Функция проверки значения на выход за границы
-function isValueOutOfLimits(value, type) {
+// Проверка корректности показаний датчика (общие лимиты по типу)
+function isSensorOutOfLimits(value, type) {
     if (value === null || value === undefined) return false;
-    
-    const limits = SENSOR_LIMITS[type];
+    const limits = getSensorLimits(type);
     if (!limits) return false;
-
     return value < limits.min || value > limits.max;
+}
+
+// Проверка выхода за нормы участка (индивидуальные лимиты секции)
+function isSectionOutOfLimits(value, sectionId, type) {
+    if (value === null || value === undefined) return false;
+    const limits = getSectionLimits(sectionId, type);
+    if (!limits) return false;
+    return value < limits.min || value > limits.max;
+}
+
+// Проверка попадания в зону предупреждения участка (warning_min/warning_max)
+function isSectionWarning(value, sectionId, type) {
+    if (value === null || value === undefined) return false;
+    const limits = getSectionLimits(sectionId, type);
+    if (!limits) return false;
+    if (limits.warning_min != null && value < limits.warning_min) return true;
+    if (limits.warning_max != null && value > limits.warning_max) return true;
+    return false;
 }
 
 // Получение текущих данных
@@ -50,35 +66,33 @@ async function fetchCurrentData() {
     }
 }
 
-// Получение исторических данных
-async function fetchHistoricalData(range) {
+// Получение исторических данных (всегда за 1 час)
+async function fetchHistoricalData() {
     try {
-        return await fetchAPI(`${API_ENDPOINTS.HISTORICAL_DATA}?range=${range}`);
+        return await fetchAPI(API_ENDPOINTS.HISTORICAL_DATA);
     } catch (error) {
         console.error('Ошибка при получении исторических данных:', error);
         throw error;
     }
 }
 
-// Получение исторических данных для конкретного склада
-async function fetchStorageHistory(storageId, range) {
-    const cacheKey = `${storageId}_${range}`;
+// Получение исторических данных для конкретного участка (всегда за 1 час)
+async function fetchSectionHistory(sectionId) {
+    const cacheKey = sectionId;
     
     // Проверяем кэш
     if (historyCache.has(cacheKey)) {
         const cachedData = historyCache.get(cacheKey);
         const now = Date.now();
 
-        // Используем кэш, если данные не старше 30 секунд (уменьшено с 5 минут для более быстрого обновления)
-        if (now - cachedData.timestamp < 30* 1000) {
+        if (now - cachedData.timestamp < 30 * 1000) {
             return cachedData.data;
         }
     }
     
     try {
-        const data = await fetchAPI(`${API_ENDPOINTS.STORAGE_HISTORY(storageId)}?range=${range}`);
+        const data = await fetchAPI(API_ENDPOINTS.SECTION_HISTORY(sectionId));
         
-        // Сохраняем в кэш
         historyCache.set(cacheKey, {
             data,
             timestamp: Date.now()
@@ -86,7 +100,7 @@ async function fetchStorageHistory(storageId, range) {
         
         return data;
     } catch (error) {
-        console.error(`Ошибка при получении истории для склада ${storageId}:`, error);
+        console.error(`Ошибка при получении истории для участка ${sectionId}:`, error);
         throw error;
     }
 }
@@ -101,4 +115,4 @@ async function fetchConfig() {
     }
 }
 
-export { isValueOutOfLimits, fetchCurrentData, fetchHistoricalData, fetchStorageHistory, fetchConfig, fetchAPI };
+export { isSensorOutOfLimits, isSectionOutOfLimits, isSectionWarning, fetchCurrentData, fetchHistoricalData, fetchSectionHistory, fetchConfig, fetchAPI };

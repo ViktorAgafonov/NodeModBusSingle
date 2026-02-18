@@ -1,11 +1,6 @@
-/**
- * Модуль для обработки ошибок в UI
- */
+﻿// Обработка ошибок UI
 
-/**
- * Показать ошибку соединения
- * @param {Function} retryCallback - Функция для повторной попытки
- */
+// Показать ошибку соединения
 export function showConnectionError(retryCallback) {
     // Проверяем, есть ли уже уведомление об ошибке
     if (document.getElementById('connection-error')) return;
@@ -45,9 +40,7 @@ export function showConnectionError(retryCallback) {
     });
 }
 
-/**
- * Скрыть ошибку соединения
- */
+// Скрыть ошибку соединения
 export function hideConnectionError() {
     const errorDiv = document.getElementById('connection-error');
     if (errorDiv) {
@@ -55,13 +48,7 @@ export function hideConnectionError() {
     }
 }
 
-/**
- * Функция для автоматических повторных попыток при ошибке соединения
- * @param {Function} callback - Функция для повторной попытки
- * @param {number} maxRetries - Максимальное количество попыток
- * @param {number} delay - Задержка между попытками в мс
- * @returns {Promise<boolean>} - Успешность восстановления
- */
+// Автоматические повторные попытки соединения
 export async function retryConnection(callback, maxRetries = 3, delay = 5000) {
     let retries = 0;
     let success = false;
@@ -91,64 +78,25 @@ export async function retryConnection(callback, maxRetries = 3, delay = 5000) {
     return success;
 }
 
-/**
- * Показать ошибку в элементе
- * @param {HTMLElement} element - Элемент для отображения ошибки
- * @param {string} message - Сообщение об ошибке
- */
-export function showElementError(element, message) {
-    if (!element) return;
-
-    element.innerHTML = `
-        <div class="error-message">
-            <p>${message}</p>
-        </div>
-    `;
-}
-
-/**
- * Обработка ошибок fetch запросов
- * @param {Error} error - Ошибка
- * @param {string} context - Контекст ошибки
- */
-export function handleFetchError(error, context = '') {
-    console.error(`Ошибка ${context}:`, error);
-
-    if (error.message === 'Failed to fetch' || error instanceof TypeError) {
-        showConnectionError(async () => {
-            // Попытка повторного подключения
-            try {
-                const response = await fetch('/api/config');
-                return response.ok;
-            } catch (e) {
-                return false;
-            }
-        });
-    }
-}
-
-/**
- * Пометить датчики как оффлайн
- */
+// Пометить датчики как оффлайн
 export function markSensorsOffline() {
-    document.querySelectorAll('.sensor-item').forEach(sensor => {
-        sensor.classList.add('error', 'offline');
-        const valueElement = sensor.querySelector('.value');
-        if (valueElement) {
-            valueElement.textContent = 'Ошибка';
-        }
+    document.querySelectorAll('.temp-value, .humidity-value').forEach(el => {
+        el.textContent = 'Err';
+        const row = el.closest('.temp-value-row, .humidity-value-row');
+        if (row) row.classList.add('error');
+    });
+    document.querySelectorAll('.temp-bar-fill').forEach(bar => {
+        bar.style.height = '0%';
+        bar.className = 'temp-bar-fill';
     });
 }
 
-/**
- * Пометить склады как оффлайн
- * @param {Map} storageStatuses - Map со статусами складов
- */
-export function markStoragesOffline(storageStatuses) {
-    document.querySelectorAll('.storage-card').forEach(card => {
-        const storageId = card.dataset.storage;
-        if (storageId) {
-            storageStatuses.set(storageId, false);
+// Пометить участки как оффлайн
+export function markSectionsOffline(sectionStatuses) {
+    document.querySelectorAll('.section-card').forEach(card => {
+        const sectionId = card.dataset.section;
+        if (sectionId) {
+            sectionStatuses.set(sectionId, false);
         }
     });
 }
