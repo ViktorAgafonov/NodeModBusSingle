@@ -37,7 +37,7 @@ function formatMessage(level, message) {
 }
 
 function shouldLog(level) {
-    const levelValue = LOG_LEVELS[level] ?? LOG_LEVELS.ERROR;
+    const levelValue = LOG_LEVELS[level] || LOG_LEVELS.ERROR;
     return levelValue <= currentLogLevel;
 }
 

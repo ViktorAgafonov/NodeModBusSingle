@@ -208,7 +208,7 @@ class MetricsService {
             userAgent: userAgent,
             lastSeen: now,
             lastPath: path,
-            requestCount: (this.metrics.activeClients.clients[clientId]?.requestCount || 0) + 1
+            requestCount: ((this.metrics.activeClients.clients[clientId] && this.metrics.activeClients.clients[clientId].requestCount) || 0) + 1
         };
 
         this.metrics.activeClients.count = Object.keys(this.metrics.activeClients.clients).length;

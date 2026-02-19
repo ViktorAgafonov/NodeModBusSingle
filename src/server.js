@@ -54,7 +54,7 @@ const PORT = process.env.PORT || 3000;
 app.use(compression());
 
 // Ограничение размера запросов
-const requestLimit = config.settings?.api?.requestLimit || '5mb';
+const requestLimit = (config.settings && config.settings.api && config.settings.api.requestLimit) || '5mb';
 app.use(express.json({ limit: requestLimit }));
 app.use(express.urlencoded({ extended: true, limit: requestLimit }));
 
@@ -301,7 +301,7 @@ async function updateSystemMetrics() {
 }
 
 // Обновляем системные метрики каждые 5 минут (300000ms) для снижения нагрузки на I/O
-const METRICS_UPDATE_INTERVAL = config.settings?.cache?.diskUsageTimeout || 300000;
+const METRICS_UPDATE_INTERVAL = (config.settings && config.settings.cache && config.settings.cache.diskUsageTimeout) || 300000;
 setInterval(updateSystemMetrics, METRICS_UPDATE_INTERVAL);
 
 // Функция запуска опроса всех участков
@@ -754,7 +754,7 @@ function updateSensorData(sensor, value, deviceInfo) {
     }
 
     // Проверяем предыдущее значение и логируем существенные изменения
-    const prevValue = global.currentSensorData[sensorId]?.value;
+    const prevValue = global.currentSensorData[sensorId] && global.currentSensorData[sensorId].value;
     if (prevValue !== undefined &&
         Math.abs(prevValue - validatedValue) >= MODBUS_SETTINGS.SIGNIFICANT_CHANGE) {
         const sensorTime = process.hrtime(sensorStartTime);
@@ -836,8 +836,8 @@ if (typeof errorSource === 'string') {
 } else if (errorSource && typeof errorSource === 'object' && errorSource.section) {
     // errorSource.section — это имя участка; находим его id в конфиге
     try {
-        const matched = (global.config?.sections || []).find(s => s.name === errorSource.section);
-        const sectionIdCandidate = matched?.id;
+        const matched = ((global.config && global.config.sections) || []).find(s => s.name === errorSource.section);
+        const sectionIdCandidate = matched && matched.id;
         sectionIdPrefix = sectionIdCandidate || errorSource.section; // fallback на имя, если id не найден
     } catch (_) {}
 }
@@ -958,7 +958,7 @@ app.use((req, res, next) => {
                 userAgent: userAgent,
                 lastSeen: now,
                 lastPath: req.path,
-                requestCount: (metrics.activeClients.clients[clientId]?.requestCount || 0) + 1
+                requestCount: ((metrics.activeClients.clients[clientId] && metrics.activeClients.clients[clientId].requestCount) || 0) + 1
             };
             
             // Обновляем общее количество активных клиентов
