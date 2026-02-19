@@ -103,12 +103,10 @@ function validateSectionId(res, sectionId) {
 }
 
 // Кэш для хранения результатов агрегации с использованием LRU
-const { LRUCache } = require('lru-cache');
-const historyCache = new LRUCache({
-    max: 100, // Максимум 100 элементов
-    ttl: 10 * 1000, // 10 секунд TTL (уменьшено с 60 секунд для более быстрого обновления)
-    updateAgeOnGet: false,
-    updateAgeOnHas: false
+const LRU = require('lru-cache');
+const historyCache = new LRU({
+    max: 100,
+    maxAge: 10 * 1000
 });
 
 // Подписываемся на событие сохранения данных в архив для инвалидации кэша
