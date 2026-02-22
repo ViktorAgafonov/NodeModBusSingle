@@ -1,21 +1,39 @@
-﻿:root {
-    /* Основная цветовая схема (тёплая тема пекарни) */
-    --primary-color: #b78253;      /* Коричневый */
-    --secondary-color: #000000;    /* Коричневый */
-    --background-color: #24426b;   /* Светло-бежевый фон */
-    --card-background: #ffffff;    /* Белый */
-    --text-color: #ffffff;        /* Тёмно-коричневый */
-    --border-color: #d7ccc8;      /* Светло-коричневый */
-    --current-color: #faf3e0; 	/* Кремовый */
-    
-    /* Статусы и предупреждения */
-    --success-color: #558b2f;      /* Оливково-зеленый */
-    --danger-color: #c62828;       /* Насыщенный красный */
-    --warning-color: #e65100;      /* Тёмно-оранжевый */
-    
-    /* Цвета датчиков */
-    --temperature-color: hsl(14, 96%, 11%);  /* Тёмно-оранжевый */
-    --humidity-color: #00838f;     /* Тёмно-бирюзовый */
+﻿/* ============================================================
+   ГЛОБАЛЬНЫЕ СТИЛИ — CSS-переменные, сброс, типографика
+   ============================================================ */
+:root {
+    /* HMI тёмная тема */
+    --bg-primary: #1a1d23;
+    --bg-secondary: #22262e;
+    --bg-card: #2a2f38;
+    --bg-card-hover: #313640;
+    --bg-header: #333842;
+    --bg-bar-track: rgba(255,255,255,0.06);
+
+    /* Текст */
+    --text-primary: #e8eaed;
+    --text-secondary: #9aa0a6;
+    --text-muted: #6b7280;
+
+    /* Акценты */
+    --accent-temp: #ff6b35;
+    --accent-humidity: #4fc3f7;
+    --accent-ok: #66bb6a;
+    --accent-danger: #ef5350;
+    --accent-warning: #ffa726;
+
+    /* Границы */
+    --border-card: rgba(255,255,255,0.08);
+    --border-active: rgba(255,255,255,0.15);
+
+    /* Радиусы */
+    --radius-sm: 4px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+
+    /* Шрифт */
+    --font-mono: 'Consolas', 'SF Mono', 'Roboto Mono', monospace;
+    --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 * {
@@ -25,16 +43,20 @@
 }
 
 body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-    background-color: var(--background-color);
-    color: var(--text-color);
-    line-height: 1.2;
+    font-family: var(--font-sans);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    line-height: 1.3;
+    -webkit-font-smoothing: antialiased;
 }
 
+/* ============================================================
+   LAYOUT — контейнер, хедер, сетка
+   ============================================================ */
 .container {
     max-width: 1200px;
     margin: 0 auto;
-    padding: 20px;
+    padding: 16px;
     min-height: 100vh;
 }
 
@@ -42,46 +64,45 @@ header {
     display: grid;
     grid-template-columns: 1fr auto 1fr;
     align-items: center;
-    margin-bottom: 20px;
-    margin-top: 50px;
+    margin-bottom: 16px;
+    padding: 12px 0;
 }
 
 h1 {
     margin: 0;
-    color: var(--secondary-color);
-    font-size: 2em;
-    font-weight: 600;
+    color: var(--text-secondary);
+    font-size: 1.1em;
+    font-weight: 500;
     text-align: center;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
 }
 
 .header-date {
-    font-size: 2.8em;
+    font-family: var(--font-mono);
+    font-size: 1.6em;
     font-weight: 600;
-    color: var(--text-color);
+    color: var(--text-primary);
     white-space: nowrap;
     text-align: left;
-    margin-left: 150px;
+    padding-left: 8px;
 }
 
 .header-time {
-    font-size: 2.8em;
+    font-family: var(--font-mono);
+    font-size: 1.6em;
     font-weight: 600;
-    color: var(--text-color);
+    color: var(--text-primary);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
     text-align: right;
-    margin-right: 150px;
-}
-
-.data-group h3 {
-    font-size: 0.7em;
+    padding-right: 8px;
 }
 
 .sections-grid {
     display: grid;
     grid-template-columns: 1fr;
-    gap: 16px;
-    justify-content: center;
+    gap: 12px;
 }
 
 @media screen and (min-width: 768px) {
@@ -91,66 +112,70 @@ h1 {
 }
 
 @media screen and (min-width: 1200px) {
-    .container {
-        max-width: 1600px;
-    }
-    
+    .container { max-width: 1600px; }
     .sections-grid {
-        grid-template-columns: repeat(3, minmax(400px, 1fr));
+        grid-template-columns: repeat(3, minmax(380px, 1fr));
     }
 }
 
 @media screen and (min-width: 1800px) {
-    .container {
-        max-width: 1920px;
-    }
+    .container { max-width: 1920px; }
     .sections-grid {
-        grid-template-columns: repeat(3, minmax(480px, 1fr));
+        grid-template-columns: repeat(3, minmax(460px, 1fr));
     }
+    .header-date, .header-time { font-size: 2em; }
 }
 
-/* === Карточка участка === */
+/* ============================================================
+   КАРТОЧКА УЧАСТКА
+   ============================================================ */
 .section-card {
-    background-color: var(--card-background);
-    border-radius: 16px;
+    background: var(--bg-card);
+    border-radius: var(--radius-lg);
     overflow: hidden;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
     display: flex;
     flex-direction: column;
-    border: 2px solid var(--border-color);
-    min-width: 260px;
-    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    border: 1px solid var(--border-card);
+    min-width: 240px;
+    transition: border-color 0.3s, box-shadow 0.3s;
 }
 
+.section-card:hover {
+    border-color: var(--border-active);
+}
+
+/* Warning — пульсация рамки */
 .section-card.warning-active {
-    animation: warning-border-pulse 1.5s ease-in-out infinite;
+    animation: warning-border-pulse 2s ease-in-out infinite;
 }
 
 @keyframes warning-border-pulse {
     0%, 100% {
-        border-color: var(--danger-color);
-        box-shadow: 0 0 20px rgba(198, 40, 40, 0.5);
+        border-color: var(--accent-danger);
+        box-shadow: 0 0 16px rgba(239, 83, 80, 0.35);
     }
     50% {
-        border-color: rgba(198, 40, 40, 0.2);
-        box-shadow: 0 0 4px rgba(198, 40, 40, 0.1);
+        border-color: rgba(239, 83, 80, 0.15);
+        box-shadow: 0 0 4px rgba(239, 83, 80, 0.08);
     }
 }
 
 /* Хедер карточки */
 .card-header {
-    padding: 10px 16px;
-    background: var(--primary-color);
-    color: white;
+    padding: 8px 14px;
+    background: var(--bg-header);
     display: flex;
     align-items: center;
     justify-content: space-between;
+    border-bottom: 1px solid var(--border-card);
+    transition: background 0.3s;
 }
 
 .card-header h2 {
     margin: 0;
-    font-size: 1.25em;
+    font-size: 1em;
     font-weight: 600;
+    color: var(--text-primary);
     letter-spacing: 0.02em;
 }
 
@@ -162,33 +187,35 @@ h1 {
 
 /* Badge статуса */
 .status-badge {
-    font-size: 0.7em;
-    padding: 2px 10px;
-    border-radius: 12px;
-    font-weight: 600;
-    letter-spacing: 0.03em;
+    font-size: 0.6em;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
     text-transform: uppercase;
 }
 
 .status-badge.online {
-    background: var(--success-color);
-    color: white;
+    background: rgba(102, 187, 106, 0.2);
+    color: var(--accent-ok);
+    border: 1px solid rgba(102, 187, 106, 0.3);
 }
 
 .status-badge.offline {
-    background: var(--danger-color);
-    color: white;
+    background: rgba(239, 83, 80, 0.2);
+    color: var(--accent-danger);
+    border: 1px solid rgba(239, 83, 80, 0.3);
 }
 
-/* Кнопка истории в хедере */
+/* Кнопка истории */
 .card-header .history-btn {
     background: none;
     border: none;
     cursor: pointer;
-    font-size: 1.1em;
+    font-size: 1em;
     padding: 0;
-    color: white;
-    opacity: 0.7;
+    color: var(--text-secondary);
+    opacity: 0.6;
     transition: opacity 0.2s;
 }
 
@@ -196,31 +223,34 @@ h1 {
     opacity: 1;
 }
 
-/* Красный заголовок только при предупреждении по температуре */
+/* Красный заголовок при предупреждении по температуре */
 .section-card.temperature-warning .card-header {
-    background: var(--danger-color);
+    background: rgba(239, 83, 80, 0.25);
+    border-bottom-color: rgba(239, 83, 80, 0.3);
 }
 
-/* Пульсация значения влажности при предупреждении по влажности */
+/* Пульсация значения влажности при предупреждении */
 .section-card.humidity-warning .humidity-value {
     animation: value-pulse 1.5s ease-in-out infinite;
 }
 
 @keyframes value-pulse {
-    0%, 100% { color: var(--danger-color); opacity: 1; }
-    50% { opacity: 0.4; }
+    0%, 100% { color: var(--accent-danger); opacity: 1; }
+    50% { opacity: 0.3; }
 }
 
-
-/* Тело карточки */
+/* ============================================================
+   ТЕЛО КАРТОЧКИ — данные датчиков
+   ============================================================ */
 .card-body {
-    padding: 16px;
+    padding: 14px;
     display: flex;
     flex-direction: row;
-    gap: 8px;
-    min-height: 260px;
+    gap: 10px;
+    min-height: 240px;
 }
 
+/* Вертикальные бары температуры */
 .temp-bars-vertical {
     display: flex;
     flex-direction: row;
@@ -232,24 +262,57 @@ h1 {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 2px;
+    gap: 3px;
 }
 
 .bar-limit {
-    font-size: 1.5em;
-    color: var(--secondary-color);
-    opacity: 0.8;
+    font-family: var(--font-mono);
+    font-size: 0.7em;
+    color: var(--text-muted);
     line-height: 1;
 }
 
-.bar-limit-max {
-    order: -1;
+.bar-limit-max { order: -1; }
+.bar-limit-min { order: 1; }
+
+.temp-bar-track {
+    width: 10px;
+    flex: 1;
+    background: var(--bg-bar-track);
+    border-radius: 5px;
+    overflow: hidden;
+    position: relative;
+    transition: width 0.3s;
 }
 
-.bar-limit-min {
-    order: 1;
+.temp-bar-fill {
+    width: 100%;
+    height: 0%;
+    border-radius: 5px;
+    background: var(--accent-ok);
+    transition: height 0.6s ease, background 0.3s;
+    position: absolute;
+    bottom: 0;
 }
 
+.temp-bar-fill.warning {
+    background: var(--accent-warning);
+}
+
+.temp-bar-fill.critical {
+    background: var(--accent-danger);
+}
+
+/* При warning по температуре — бар шире */
+.section-card.temperature-warning .temp-bar-track {
+    width: 14px;
+}
+
+.section-card.temperature-warning .temp-bar-fill {
+    background: var(--accent-danger);
+}
+
+/* Контент карточки */
 .card-content {
     flex: 1;
     display: flex;
@@ -262,124 +325,74 @@ h1 {
     z-index: 2;
     display: flex;
     flex-direction: row;
-    gap: 16px;
-}
-
-/* === Температура — основной акцент === */
-.temp-block {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
+    gap: 12px;
     flex: 1;
-    order: 1;
+    align-items: stretch;
+    margin-top: 10%;
+    margin-left: 1%;
+    font-size: 1.6em;
 }
 
-.temp-label {
-    font-size: 0.85em;
-    color: var(--secondary-color);
-    opacity: 0.8;
-}
-
-.temp-value-row {
-    display: flex;
-    align-items: baseline;
-    gap: 4px;
-}
-
-.temp-value {
-    font-size: 4.8em;
-    font-weight: 800;
-    line-height: 1;
-    color: var(--temperature-color);
-}
-
-.temp-unit {
-    font-size: 1.3em;
-    font-weight: 600;
-    color: var(--temperature-color);
-    opacity: 0.7;
-}
-
-.temp-bar-track {
-    width: 14px;
-    flex: 1;
-    background: rgba(0,0,0,0.06);
-    border-radius: 3px;
-    overflow: hidden;
-    position: relative;
-    transition: width 0.4s ease;
-}
-
-.temp-bar-fill {
-    width: 100%;
-    height: 0%;
-    border-radius: 3px;
-    background: var(--success-color);
-    transition: height 0.6s ease, background 0.4s ease;
-    position: absolute;
-    bottom: 0;
-}
-
-.temp-bar-fill.warning {
-    background: var(--danger-color);
-}
-
-/* При warning по температуре — прогресс-бар шире и красный */
-.section-card.temperature-warning .temp-bar-track {
-    width: 15px;
-    border-radius: 5px;
-}
-
-.section-card.temperature-warning .temp-bar-fill {
-    background: var(--danger-color);
-}
-
-.temp-bar-fill.critical {
-    background: var(--danger-color);
-}
-
-/* === Влажность — второстепенный акцент === */
+/* ============================================================
+   ТЕМПЕРАТУРА И ВЛАЖНОСТЬ — одинаковый размер
+   ============================================================ */
+.temp-block,
 .humidity-block {
     display: flex;
     flex-direction: column;
-    gap: 2px;
-    opacity: 0.7;
+    gap: 4px;
     flex: 1;
-    order: 2;
-    justify-content: flex-end;
-    align-items: flex-end;
 }
 
+.temp-block { order: 1; }
+.humidity-block { order: 2; }
+
+.temp-label,
 .humidity-label {
-    font-size: 0.8em;
-    color: var(--secondary-color);
+    font-size: 0.7em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
 }
 
+.temp-value-row,
 .humidity-value-row {
     display: flex;
     align-items: baseline;
     gap: 3px;
 }
 
+.temp-value,
 .humidity-value {
-    font-size: 1.5em;
-    font-weight: 600;
-    color: var(--humidity-color);
+    font-family: var(--font-mono);
+    font-size: 3em;
+    font-weight: 700;
+    line-height: 1;
 }
 
+.temp-value { color: var(--accent-temp); }
+.humidity-value { color: var(--accent-humidity); }
+
+.temp-unit,
 .humidity-unit {
-    font-size: 0.9em;
-    color: var(--humidity-color);
-    opacity: 0.7;
+    font-size: 1em;
+    font-weight: 600;
+    opacity: 0.5;
 }
 
-/* === График — полупрозрачный фон в правом нижнем углу === */
+.temp-unit { color: var(--accent-temp); }
+.humidity-unit { color: var(--accent-humidity); }
+
+/* ============================================================
+   МИНИ-ГРАФИК
+   ============================================================ */
 .chart-area {
     width: 100%;
-    height: 100px;
-    opacity: 0.55;
+    height: 80px;
+    opacity: 0.5;
     pointer-events: none;
-    margin-top: 8px;
+    margin-top: auto;
+    padding-top: 8px;
 }
 
 .chart-area canvas {
@@ -391,247 +404,137 @@ h1 {
     display: none;
 }
 
+/* ============================================================
+   ОБЩИЕ УТИЛИТЫ — ошибки, предупреждения
+   ============================================================ */
 .error {
-    color: #721c24;
-    background-color: #f8d7da;
-    border: 1px solid #f5c6cb;
-    border-radius: 6px;
+    color: var(--accent-danger);
+    background: rgba(239, 83, 80, 0.1);
+    border: 1px solid rgba(239, 83, 80, 0.3);
+    border-radius: var(--radius-md);
     font-weight: 500;
-    font-size: 1em;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    font-size: 0.9em;
 }
 
 .sensor-item.warning .value {
-    color: var(--warning-color);
+    color: var(--accent-warning);
     animation: pulse 1s infinite;
 }
 
 @keyframes pulse {
-    0% {
-        transform: scale(1);
-        opacity: 1;
-    }
-    98% {
-        transform: scale(0.5);
-        opacity: 0.1;
-    }
+    0% { transform: scale(1); opacity: 1; }
+    98% { transform: scale(0.5); opacity: 0.1; }
 }
 
-/* Стили для страницы метрик */
+.data-group h3 {
+    font-size: 0.7em;
+}
+
+/* ============================================================
+   СТРАНИЦА МЕТРИК
+   ============================================================ */
 .reset-button, .refresh-button {
-    background-color: #007bff;
+    background: #2563eb;
     color: white;
     border: none;
-    padding: 10px 20px;
-    border-radius: 4px;
+    padding: 8px 16px;
+    border-radius: var(--radius-sm);
     cursor: pointer;
-    margin-right: 10px;
+    margin-right: 8px;
+    font-weight: 500;
 }
 
 .reset-button:hover, .refresh-button:hover {
-    background-color: #0056b3;
+    background: #1d4ed8;
 }
 
 .metrics-container {
     max-width: 800px;
     margin: 20px auto;
     padding: 20px;
-    background: #fff;
-    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    border-radius: var(--radius-md);
 }
 
 .metric-group {
-    background-color: #f5f5f5;
-    border-radius: 8px;
-    padding: 20px;
-    margin-bottom: 20px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    background: var(--bg-card);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    margin-bottom: 16px;
+    border: 1px solid var(--border-card);
 }
 
 .metric-group h2 {
-    color: #333;
+    color: var(--text-primary);
     margin-top: 0;
-    margin-bottom: 15px;
-    border-bottom: 2px solid #ddd;
-    padding-bottom: 10px;
-}
-
-.error-count {
-    color: #dc3545;
-    font-weight: bold;
-}
-
-.warning-count {
-    color: #bb6100;
-    font-weight: bold;
-}
-
-.uptime {
-    font-size: 1.2em;
-    font-weight: bold;
-    color: #28a745;
-}
-
-.last-error {
-    color: #ed6c02;
-}
-
-.affected-sensors {
-    margin-top: 10px;
-}
-
-.affected-sensors h3 {
-    margin-bottom: 10px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid var(--border-card);
+    padding-bottom: 8px;
     font-size: 1em;
-    color: #666;
 }
 
-.affected-sensors ul {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-}
+.error-count { color: var(--accent-danger); font-weight: bold; }
+.warning-count { color: var(--accent-warning); font-weight: bold; }
+.uptime { font-size: 1.1em; font-weight: bold; color: var(--accent-ok); }
+.last-error { color: var(--accent-warning); }
 
-.affected-sensors li {
-    padding: 5px 0;
-    border-bottom: 1px solid #eee;
-}
+.affected-sensors { margin-top: 10px; }
+.affected-sensors h3 { margin-bottom: 8px; font-size: 0.9em; color: var(--text-secondary); }
+.affected-sensors ul { list-style: none; padding: 0; margin: 0; }
+.affected-sensors li { padding: 4px 0; border-bottom: 1px solid var(--border-card); }
 
-.clients-list {
-    margin-top: 15px;
-    overflow-x: auto;
-}
+.clients-list { margin-top: 12px; overflow-x: auto; }
 
-#clients-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 10px;
-}
+#clients-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+#clients-table th, #clients-table td { padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--border-card); }
+#clients-table th { background: var(--bg-header); font-weight: 600; }
+#clients-table tr:hover { background: var(--bg-card-hover); }
 
-#clients-table th,
-#clients-table td {
-    padding: 8px;
-    text-align: left;
-    border-bottom: 1px solid #ddd;
-}
+#memory-usage, #cpu-load { font-weight: bold; color: var(--accent-ok); }
+#last-error-time { color: var(--accent-danger); }
+.metric-value { font-weight: bold; color: var(--accent-humidity); }
 
-#clients-table th {
-    background-color: #f8f9fa;
-    font-weight: bold;
-}
-
-#clients-table tr:hover {
-    background-color: #f5f5f5;
-}
-
-#memory-usage,
-#cpu-load {
-    font-weight: bold;
-    color: #28a745;
-}
-
-#last-error-time {
-    color: #dc3545;
-}
-
-.metric-value {
-    font-weight: bold;
-    color: #0056b3;
-}
-
+/* ============================================================
+   КНОПКА ИСТОРИИ (общая)
+   ============================================================ */
 .history-btn {
     background: none;
     border: none;
     cursor: pointer;
-    font-size: 1.3em;
+    font-size: 1.1em;
     padding: 0;
-    color: white;
-    opacity: 0.8;
+    color: var(--text-secondary);
+    opacity: 0.6;
     transition: opacity 0.2s;
     margin-left: auto;
     order: 3;
 }
 
-.history-btn:hover {
-    opacity: 1;
-}
+.history-btn:hover { opacity: 1; }
 
+/* ============================================================
+   АДАПТИВНОСТЬ
+   ============================================================ */
 @media screen and (max-width: 769px) {
-    h1 {
-        font-size: 1.2em;
-    }
-    
-    .container {
-        padding: 10px;
-    }
-    
-    .current-data {
-        grid-template-columns: 1fr;
-        gap: 15px;
-    }
-    
-    .data-group {
-        gap: 5px;
-    }
+    h1 { font-size: 0.85em; }
+    .container { padding: 8px; }
+    .header-date, .header-time { font-size: 1.1em; }
 
-    .sensor-item {
-        font-size: 1em;
-    }
+    .temp-value, .humidity-value { font-size: 2.2em; }
 
-    .group-icon {
-        width: 20px;
-        height: 20px;
-        mask-size: 14px;
-        background-size: 14px;
-    }
+    .section-card { min-height: 320px; }
 
-    .value-wrapper {
-        min-width: 70px;
-    }
-    
-    .chart-container {
-        min-height: 150px;
-        max-height: 250px;
-        height: 30vh;
-        padding: 5px;
-    }
-
-    .section-card {
-        min-height: 400px;
-    }
-
-    .data-group h3 {
-        font-size: 0.9em;
-    }
-
-    .main-legend {
-        max-height: 20px;
-        padding: 1px;
-    }
-    
-    .main-legend .legend-group {
-        padding: 0;
-    }
-    
-    .main-legend .legend-item {
-        font-size: 9px;
-        margin: 0 2px;
-        padding: 0 1px;
-    }
-    
-    .main-legend .legend-color {
-        width: 5px;
-        height: 5px;
-        margin-right: 1px;
-    }
-    
-    .main-legend .legend-item.hidden {
-        opacity: 0.6;
-        text-decoration: line-through;
-    }
+    .main-legend { max-height: 20px; padding: 1px; }
+    .main-legend .legend-group { padding: 0; }
+    .main-legend .legend-item { font-size: 9px; margin: 0 2px; padding: 0 1px; }
+    .main-legend .legend-color { width: 5px; height: 5px; margin-right: 1px; }
+    .main-legend .legend-item.hidden { opacity: 0.6; text-decoration: line-through; }
 }
 
-/* Стили для модального окна */
+/* ============================================================
+   МОДАЛЬНОЕ ОКНО
+   ============================================================ */
 .modal {
     display: flex;
     align-items: center;
@@ -641,14 +544,15 @@ h1 {
     left: 0;
     width: 100%;
     height: 90%;
-    background-color: rgba(0, 0, 0, 0.5);
+    background: rgba(0, 0, 0, 0.7);
     z-index: 1000;
 }
 
 .modal-content {
-    background-color: white;
-    border-radius: 8px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-card);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
     width: 80%;
     max-width: 1200px;
     max-height: 90vh;
@@ -668,29 +572,27 @@ h1 {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding-left: 15px;
-    padding-right: 15px;
-    border-bottom: 1px solid #eee;
+    padding: 10px 15px;
+    border-bottom: 1px solid var(--border-card);
 }
 
 .modal-header h3 {
     margin: 0;
-    font-size: 16px;
-    color: #333;
+    font-size: 14px;
+    color: var(--text-primary);
 }
 
 .modal-close-btn {
     background: none;
     border: none;
-    font-size: 24px;
+    font-size: 22px;
     cursor: pointer;
     padding: 0;
-    color: #666;
+    color: var(--text-secondary);
+    transition: color 0.2s;
 }
 
-.modal-close-btn:hover {
-    color: #000;
-}
+.modal-close-btn:hover { color: var(--text-primary); }
 
 .modal-body {
     padding: 5px;
@@ -699,11 +601,10 @@ h1 {
     flex-direction: column;
     align-items: center;
     flex: 1;
+    color: var(--text-primary);
 }
 
-.modal-body ul {
-    padding-left: 15px;
-}
+.modal-body ul { padding-left: 15px; }
 
 .modal canvas {
     width: 100% !important;
@@ -711,13 +612,15 @@ h1 {
     max-height: calc(90vh - 180px);
 }
 
-/* Стили для легенды */
+/* ============================================================
+   ЛЕГЕНДА ГРАФИКОВ
+   ============================================================ */
 .custom-legend {
     display: flex;
     flex-direction: column;
     justify-content: center;
-    margin-bottom: 10px;
-    padding: 5px;
+    margin-bottom: 8px;
+    padding: 4px;
     width: 100%;
 }
 
@@ -725,114 +628,53 @@ h1 {
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
-    padding: 3px;
-    border-radius: 4px;
-    margin-bottom: 3px;
+    padding: 2px;
+    border-radius: var(--radius-sm);
+    margin-bottom: 2px;
 }
 
-.legend-group.temperature-group {
-    background-color: rgba(255, 99, 132, 0.05);
-}
-
-.legend-group.humidity-group {
-    background-color: rgba(54, 162, 235, 0.05);
-}
+.legend-group.temperature-group { background: rgba(255, 107, 53, 0.06); }
+.legend-group.humidity-group { background: rgba(79, 195, 247, 0.06); }
 
 .legend-item {
-    margin: 0 8px;
+    margin: 0 6px;
     cursor: pointer;
     display: flex;
     align-items: center;
-    padding: 2px 5px;
+    padding: 2px 4px;
     border-radius: 3px;
-    transition: background-color 0.2s;
+    transition: background 0.2s;
+    color: var(--text-secondary);
+    font-size: 0.85em;
 }
 
-.legend-item:hover {
-    background-color: rgba(0, 0, 0, 0.05);
-}
+.legend-item:hover { background: rgba(255,255,255,0.06); }
 
 .legend-color {
-    width: 12px;
-    height: 12px;
-    margin-right: 5px;
+    width: 10px;
+    height: 10px;
+    margin-right: 4px;
     border-radius: 50%;
 }
 
 .legend-item.hidden {
-    opacity: 0.5;
+    opacity: 0.4;
     text-decoration: line-through;
 }
 
-/* Стили для легенды модального окна */
-.modal .custom-legend {
-    margin-bottom: 5px;
-}
+/* Легенда модального окна */
+.modal .custom-legend { margin-bottom: 5px; }
+.modal .legend-group { padding: 4px; margin-bottom: 4px; }
+.modal .legend-item { margin: 0 10px; padding: 3px 5px; font-weight: 500; }
+.modal .legend-item:hover { background: rgba(255,255,255,0.06); }
+.modal .legend-item.hidden { opacity: 0.4; text-decoration: line-through; }
 
-.modal .legend-group {
-    padding: 5px;
-    margin-bottom: 5px;
-}
-
-.modal .legend-item {
-    margin: 0 12px;
-    padding: 3px 6px;
-    border-radius: 4px;
-    transition: background-color 0.2s;
-    font-weight: 500;
-}
-
-.modal .legend-item:hover {
-    background-color: rgba(0, 0, 0, 0.05);
-}
-
-.modal .legend-item.hidden {
-    opacity: 0.5;
-    text-decoration: line-through;
-}
-
-/* Стили для сообщения об ошибке */
-.error-message {
-    padding: 20px;
-    background-color: #ffebee;
-    border: 1px solid #ffcdd2;
-    border-radius: 4px;
-    color: #b71c1c;
-    text-align: center;
-    margin: 20px 0;
-}
-
-.error-message p {
-    margin: 10px 0;
-}
-
-/* Стили для сообщений об ошибках в карточках */
-.chart-container .error-message {
-    padding: 15px;
-    background-color: #ffebee;
-    border: 1px solid #ffcdd2;
-    border-radius: 4px;
-    color: #b71c1c;
-    text-align: center;
-    margin: 10px 0;
-    font-size: 14px;
-    height: 150px;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-}
-
-.chart-container .error-message p {
-    margin: 5px 0;
-}
-
-/* Стили для легенды основного графика */
+/* Легенда основного мини-графика */
 .main-legend {
     margin-top: 2px;
     margin-bottom: 2px;
     padding: 2px;
-    max-height: 24px;
+    max-height: 22px;
     overflow-y: hidden;
     display: flex;
     justify-content: center;
@@ -842,7 +684,7 @@ h1 {
 .main-legend .legend-group {
     padding: 1px;
     margin-bottom: 0;
-    background-color: transparent;
+    background: transparent;
     flex-direction: row;
     flex-wrap: nowrap;
     overflow-x: auto;
@@ -871,64 +713,92 @@ h1 {
 }
 
 .main-legend .legend-item.hidden {
-    opacity: 0.5;
+    opacity: 0.4;
     text-decoration: line-through;
 }
 
-/* Стили для footer */
+/* ============================================================
+   СООБЩЕНИЯ ОБ ОШИБКАХ
+   ============================================================ */
+.error-message {
+    padding: 16px;
+    background: rgba(239, 83, 80, 0.1);
+    border: 1px solid rgba(239, 83, 80, 0.3);
+    border-radius: var(--radius-md);
+    color: var(--accent-danger);
+    text-align: center;
+    margin: 16px 0;
+}
+
+.error-message p { margin: 8px 0; }
+
+.chart-container .error-message {
+    padding: 12px;
+    height: 120px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    font-size: 13px;
+}
+
+.chart-container .error-message p { margin: 4px 0; }
+
+/* ============================================================
+   FOOTER
+   ============================================================ */
 footer {
     width: 100%;
     text-align: center;
-    padding: 10px 0;
+    padding: 8px 0;
     margin-top: auto;
     position: sticky;
     bottom: 0;
-    backdrop-filter: blur(5px);
+    backdrop-filter: blur(8px);
+    background: rgba(26, 29, 35, 0.8);
     z-index: 90;
 }
 
-/* Стили для кнопки "О программе" */
 #about {
-    color: #777;
-    opacity: 0.7;
+    color: var(--text-muted);
+    opacity: 0.5;
     background: none;
     border: none;
-    font-size: 12px;
-    padding: 5px;
+    font-size: 11px;
+    padding: 4px;
     cursor: pointer;
-    text-align: center;
-    width: auto;
-    transition: opacity 0.3s ease;
+    transition: opacity 0.3s;
 }
 
-#about:hover {
-    opacity: 1;
-}
+#about:hover { opacity: 0.9; }
 
-/* Стили для датчиков в состоянии ошибки */
+/* ============================================================
+   СОСТОЯНИЯ ДАТЧИКОВ
+   ============================================================ */
 .sensor-item.error {
-    background-color: rgba(255, 0, 0, 0.1);
-    border-left: 3px solid #ff0000;
+    background: rgba(239, 83, 80, 0.1);
+    border-left: 3px solid var(--accent-danger);
 }
 
-/* Стили для датчиков в состоянии offline */
 .sensor-item.offline {
-    background-color: rgba(128, 128, 128, 0.1);
-    border-left: 3px solid #808080;
+    background: rgba(107, 114, 128, 0.1);
+    border-left: 3px solid var(--text-muted);
 }
 
 .sensor-item.offline .value {
-    color: #808080 !important;
+    color: var(--text-muted) !important;
 }
 
-/* Стили для уведомления об ошибке соединения */
+/* ============================================================
+   ОШИБКА СОЕДИНЕНИЯ (оверлей)
+   ============================================================ */
 .connection-error {
     position: fixed;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(0, 0, 0, 0.7);
+    background: rgba(0, 0, 0, 0.8);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -936,29 +806,34 @@ footer {
 }
 
 .error-content {
-    background-color: white;
-    padding: 20px;
-    border-radius: 5px;
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+    background: var(--bg-card);
+    padding: 24px;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-card);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
     max-width: 400px;
     text-align: center;
+    color: var(--text-primary);
 }
 
 .error-content h3 {
-    color: #ff0000;
+    color: var(--accent-danger);
     margin-top: 0;
+    margin-bottom: 12px;
 }
 
 #retry-connection {
-    background-color: #4CAF50;
-    color: white;
+    background: var(--accent-ok);
+    color: #1a1d23;
     border: none;
-    padding: 10px 20px;
-    border-radius: 5px;
+    padding: 10px 24px;
+    border-radius: var(--radius-md);
     cursor: pointer;
-    margin-top: 10px;
+    margin-top: 12px;
+    font-weight: 600;
+    transition: background 0.2s;
 }
 
 #retry-connection:hover {
-    background-color: #45a049;
-} 
+    background: #81c784;
+}
