@@ -375,20 +375,17 @@ async function stopPolling() {
         pollTimeout = null;
     }
 
-    // Запускаем опрос участков параллельно
-    await Promise.all(modbusClients.map(async (client) => {
-        const section = config.sections.find(s => s.name === client.section);
-        if (!section) return;
-
-        const sectionStartTime = process.hrtime();
-        try {
-            await pollSectionSensors(section, client);
-            const sectionTime = process.hrtime(sectionStartTime);
-            logger.debug(`Завершен опрос участка ${section.name} за ${sectionTime[0]}s ${sectionTime[1] / 1000000}ms`);
-        } catch (error) {
-            logger.error(`Ошибка при опросе участка ${section.name}: ${error.message}`);
+    // Принудительно закрываем все Modbus-соединения
+    for (const client of modbusClients) {
+        if (client.connected) {
+            try {
+                destroyClientSocket(client);
+                logger.debug(`Соединение с ${client.section} принудительно закрыто`);
+            } catch (error) {
+                logger.error(`Ошибка закрытия соединения ${client.section}: ${error.message}`);
+            }
         }
-    }));
+    }
 
     logger.info('Система опроса остановлена');
 }
@@ -514,19 +511,38 @@ async function connectWithRetry(client, section, deviceInfo) {
 
     while (retries < maxRetries) {
         try {
-            await client.client.connectTCP(section.device.ip, {
-                port: section.device.port,
-                timeout: MODBUS_SETTINGS.CONNECT_TIMEOUT
-            });
+            // Внешний таймаут на случай если connectTCP зависнет
+            await Promise.race([
+                client.client.connectTCP(section.device.ip, {
+                    port: section.device.port,
+                    timeout: MODBUS_SETTINGS.CONNECT_TIMEOUT
+                }),
+                new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('Connect timeout')),
+                        MODBUS_SETTINGS.CONNECT_TIMEOUT + 500)
+                )
+            ]);
             client.client.setTimeout(MODBUS_SETTINGS.READ_TIMEOUT);
             client.connected = true;
             return;
         } catch (error) {
+            // При таймауте принудительно уничтожаем сокет
+            destroyClientSocket(client);
             retries++;
             if (retries === maxRetries) throw error;
             await new Promise(resolve => setTimeout(resolve, 100));
         }
     }
+}
+
+// Принудительное уничтожение TCP-сокета клиента
+function destroyClientSocket(client) {
+    try {
+        if (client.client._port && client.client._port.destroy) {
+            client.client._port.destroy();
+        }
+    } catch (_) {}
+    client.connected = false;
 }
 
 function optimizeSensorGroups(sensors) {
@@ -604,10 +620,11 @@ async function readRegistersWithTimeout(client, group) {
                 group.endRegister - group.startRegister + 1
             );
 
+            let timedOut = false;
             const result = await Promise.race([
                 readPromise,
                 new Promise((_, reject) =>
-                    setTimeout(() => reject(new Error('Timeout')),
+                    setTimeout(() => { timedOut = true; reject(new Error('Timeout')); },
                         MODBUS_SETTINGS.READ_TIMEOUT)
                 )
             ]);
@@ -620,6 +637,10 @@ async function readRegistersWithTimeout(client, group) {
             return result;
         } catch (error) {
             lastError = error;
+            // При таймауте уничтожаем сокет, чтобы зависший промис не держал event loop
+            if (error.message === 'Timeout') {
+                destroyClientSocket(client);
+            }
             logger.warn(`Попытка ${attempt + 1} чтения не удалась: ${error.message}`);
             
             // Если это последняя попытка, выбрасываем ошибку
@@ -688,13 +709,19 @@ function processSensorGroupData(group, data, deviceInfo) {
 }
 
 async function cleanupConnection(client, deviceInfo, isSectionOnline, section) {
-    // Закрываем соединение, если оно было открыто
+    // Закрываем соединение с таймаутом, чтобы не зависнуть
     if (client.connected) {
         try {
-            await client.client.close();
+            await Promise.race([
+                client.client.close(),
+                new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('Close timeout')), 2000)
+                )
+            ]);
             client.connected = false;
         } catch (error) {
-            logger.error(`${deviceInfo} - Ошибка при закрытии соединения: ${error}`);
+            logger.error(`${deviceInfo} - Ошибка при закрытии соединения: ${error.message}`);
+            destroyClientSocket(client);
         }
     }
 
